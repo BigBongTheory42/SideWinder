@@ -1,0 +1,5203 @@
+// ==UserScript==
+// @name         Torn City Enhanced Sidebar
+// @namespace    http://tampermonkey.net/
+// @version      1.0
+// @description  Enhanced sidebar with groups, trackers, and various QoL features for Torn City
+// @author       Doobiesuckin
+// @match        https://www.torn.com/*
+// @grant        GM_setValue
+// @grant        GM_getValue
+// ==/UserScript==
+(function() {
+    'use strict';
+
+    const CONSTANTS = {
+        VERSION: '1.0',
+        SIDEBAR_WIDTH: 425,
+        MIN_GROUP_WIDTH: 180,
+        MIN_GROUP_HEIGHT: 100,
+        TRADEMARK: '𝕊𝕚𝕕𝕖𝕎𝕚𝕟𝕕𝕖𝕣🔰',
+        TAGLINES: [
+            "Made with love by Doobiesuckin [3255641]",
+            "Sometimes, It Doobiesuckin",
+            "Hope your Enjoying the SideWinder Script!",
+            "I queef out my ass sometimes (Don't Tell Mom)",
+            "Does anyone actually read these?",
+            "Tokyo Syndicate is the Best Faction",
+            "Detecting Multiple Leviathan Class lifeforms in the Region",
+            "Wanna Sign My Petition?",
+            "Gordon! Get away from the Beam!",
+            "Wait...If I smack Dwayne Johnsons butt, Did I hit rock bottom?",
+            "I wrote this Splash Text on 12-29-24",
+            "A Friend with Weed is a Friend Indeed",
+            "So, You like Jazz?",
+            "Fixing Torn's UI One Script at a Time!",
+            "Caution: May contain nuts.",
+            "All bugs are intentional. Trust the process",
+            "This Sidebar is Fully optimized for staring contests.",
+            "You Should give me a Donation, You know you want to",
+            "Check out Community Crafters on Discord Forums!",
+            "30% Less Likely to scam you over Leslie!",
+            "Did you know? The average cloud weighs about 1 million pounds!",
+            "Did you know? Some snails can sleep for three years straight!",
+            "Did you know? Cheese is the most stolen food in the world!",
+            "Be sure to Like and Review our Forum post!",
+            "-Insert Cool Sidebar Music-",
+            "I'm alive! I'm Ali...ERR0r..Sidewinder Re-Initialized",
+            "A Script Chedburn Himself is Jealous of!",
+            "Woah, Was that Legal?",
+            "Still trying to find the funny",
+            "Did you Take a Xanax Today?",
+            "Remember Bazaars? Those were cool huh",
+            "Keep Grinding those Crimes!",
+            "Why not sign yourself up for a race?",
+            "Your so close to that Gambling win, I can Feel it!",
+            "Voice Mode Enabled, You can now Start Voicing Commands",
+            "Ooh Baby, I'm debugging myself right now.",
+            "Never Gonna Give you up, Never gonna let you down",
+            "1f c0d3 === l1f3) { r3sp4wn();",
+            "I don't even know how to code! -Doobie",
+            "There's no place like 127.0.0.1...",
+            "Happiness is just a hospital trip away.",
+            "One man's trash is another's bazaar stock.",
+            "Sleep is overrated when there's money to be mugged.",
+            "Peace is just the downtime between wars.",
+            "You call it scamming. We call it creative capitalism.",
+            "You can Drag and Resize Groups in Edit Mode",
+            "You can Delete Links, Targets, Groups and more In Delete Mode",
+            "Create New Groups by Clicking the Green + button!",
+            "Use Unicode when Selectiong Emojis for Links",
+            "Find me on Dread! JK",
+            "Struggle is the enemy, Weed is my remedy",
+            "Dirty Hands, Clean Money",
+            "Loading Additional Skill Modules",
+            "Fire Script. No cap, On God - You Probably",
+            "Idle Hands Leave you evil thoughts",
+            "100% American Made",
+            "If Diddy Did Diddle Dudes, How many Dudes Did Diddy Diddle?",
+            "Add a new Link! I can Take it!",
+            "Why'd you just do that?",
+            "You've been Blessed! No OD's For 0.25 seconds! Better Hurry!",
+            "Is this thing on",
+            "01010101 01001110 01100101 01110010 01100100",
+            "Shout out my dog, Torque the Husky",
+            "Find Torn Tutorials on Youtube, Forums, and more!",
+            "That didnt go to plan...",
+            "Grass tastes bad",
+            "Shout out the dawg Rena",
+            "Thats what she said",
+            "28:06:42:12",
+        ],
+        STATE_KEYS: {
+            GROUPS: 'sidebarGroups',
+            NOTEPADS: 'sidebarNotepads',
+            ATTACK_LISTS: 'attackLists',
+            TODO_LISTS: 'todoLists',
+            LOAN_TRACKER: 'loanTracker',
+            AUCTION_TRACKER: 'auctionTracker',
+            COUNTDOWN_GROUPS: 'countdownGroups',
+            MANUAL_COUNTDOWN_GROUPS: 'manualCountdownGroups',
+            LIGHT_MODE: 'lightMode',
+            MINIMIZE_STATES: 'minimizeStates',
+            SIDEBAR_STATE: 'sidebarState',
+            CURRENT_PAGE: 'currentPage',
+            PAGE_DATA: 'pageData'
+        },
+        THEMES: {
+            LIGHT: {
+                BG: '#ffffff',
+                TEXT: '#000000',
+                BORDER: '#cccccc',
+                HEADER: '#e0e0e0',
+                SECONDARY_BG: '#f0f0f0',
+                BUTTON_BG: '#666666',
+                SUCCESS: '#336633',
+                DANGER: '#cc3333'
+            },
+            DARK: {
+                BG: '#1a1a1a',
+                TEXT: '#ffffff',
+                BORDER: '#444444',
+                HEADER: '#2c2c2c',
+                SECONDARY_BG: '#333333',
+                BUTTON_BG: '#444444',
+                SUCCESS: '#55aa55',
+                DANGER: '#ff5555'
+            }
+        }
+    };
+
+    let groups = [];
+    let notepads = [];
+    let attackLists = [];
+    let todoLists = [];
+    let loanTracker = { entries: [] };
+    let auctionTracker = { auctions: [] };
+    let countdownGroups = [];
+    let manualCountdownGroups = [];
+    let isEditMode = false;
+    let isDeleteMode = false;
+    let isDragging = false;
+    let draggedElement = null;
+    let initialX, initialY;
+    let isLightMode = false;
+    const activeDialogs = new Map();
+    let debugMenuOpen = false;
+    let currentPage = 0;
+    let pageData = [{}, {}, {}];
+    let clockVisible = false;
+
+    // Snapping grid size for dragging elements
+    const SNAP_GRID = 10;
+
+    function saveState(key, value) {
+        try {
+            const currentValue = localStorage.getItem(key);
+            if (currentValue) {
+                localStorage.setItem(`${key}_backup`, currentValue);
+            }
+
+            localStorage.setItem(key, JSON.stringify(value));
+            localStorage.setItem(`${key}_updatedAt`, Date.now());
+        } catch (e) {
+            console.error(`Error saving state for ${key}:`, e);
+
+            try {
+                GM_setValue(key, JSON.stringify(value));
+            } catch (gmError) {
+                console.error(`GM_setValue fallback also failed:`, gmError);
+            }
+        }
+    }
+
+    function loadState(key, defaultValue) {
+        try {
+            const saved = localStorage.getItem(key);
+
+            if (!saved) {
+                try {
+                    const gmValue = GM_getValue(key);
+                    return gmValue ? JSON.parse(gmValue) : defaultValue;
+                } catch (gmError) {
+                    console.error(`GM_getValue fallback failed:`, gmError);
+                    return defaultValue;
+                }
+            }
+
+            return JSON.parse(saved);
+        } catch (e) {
+            console.error(`Error loading state for ${key}:`, e);
+
+            try {
+                const backup = localStorage.getItem(`${key}_backup`);
+                if (backup) {
+                    console.log(`Attempting to recover from backup for ${key}`);
+                    return JSON.parse(backup);
+                }
+            } catch (backupError) {
+                console.error(`Backup recovery failed:`, backupError);
+            }
+
+            return defaultValue;
+        }
+    }
+
+    function initializeState() {
+        currentPage = loadState(CONSTANTS.STATE_KEYS.CURRENT_PAGE, 0);
+        pageData = loadState(CONSTANTS.STATE_KEYS.PAGE_DATA, [{}, {}, {}]);
+
+        loadPageData();
+
+        isLightMode = loadState(CONSTANTS.STATE_KEYS.LIGHT_MODE, false);
+    }
+
+    function loadPageData() {
+        groups = loadState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, []);
+        notepads = loadState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${currentPage}`, []);
+        attackLists = loadState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, []);
+        todoLists = loadState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, []);
+        loanTracker = loadState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, { entries: [] });
+        auctionTracker = loadState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, { auctions: [] });
+        countdownGroups = loadState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, []);
+        manualCountdownGroups = loadState(`${CONSTANTS.STATE_KEYS.MANUAL_COUNTDOWN_GROUPS}_${currentPage}`, []);
+    }
+
+    function savePageData() {
+        saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, groups);
+        saveState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${currentPage}`, notepads);
+        saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, attackLists);
+        saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+        saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+        saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+        saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+        saveState(`${CONSTANTS.STATE_KEYS.MANUAL_COUNTDOWN_GROUPS}_${currentPage}`, manualCountdownGroups);
+
+        saveState(CONSTANTS.STATE_KEYS.CURRENT_PAGE, currentPage);
+    }
+
+    function changePage(pageNumber) {
+        savePageData();
+
+        currentPage = pageNumber;
+        saveState(CONSTANTS.STATE_KEYS.CURRENT_PAGE, currentPage);
+
+        loadPageData();
+
+        refreshSidebar();
+
+        showToast(`Switched to Page ${pageNumber + 1}`, 'info');
+    }
+
+    function saveDialogState(dialogId, state) {
+        try {
+            GM_setValue(dialogId, state);
+            activeDialogs.set(dialogId, state);
+        } catch (e) {
+            console.error('Error saving dialog state:', e);
+        }
+    }
+
+    function removeDialogState(dialogId) {
+        try {
+            GM_setValue(dialogId, null);
+            activeDialogs.delete(dialogId);
+        } catch (e) {
+            console.error('Error removing dialog state:', e);
+        }
+    }
+
+    function saveMinimizeState(type, index, isMinimized) {
+        const minimizeStates = loadState(CONSTANTS.STATE_KEYS.MINIMIZE_STATES, {});
+        minimizeStates[`${type}-${index}-${currentPage}`] = isMinimized;
+        saveState(CONSTANTS.STATE_KEYS.MINIMIZE_STATES, minimizeStates);
+    }
+
+    function isElementMinimized(type, index) {
+        const minimizeStates = loadState(CONSTANTS.STATE_KEYS.MINIMIZE_STATES, {});
+        return minimizeStates[`${type}-${index}-${currentPage}`] || false;
+    }
+
+    function getTheme() {
+        return isLightMode ? CONSTANTS.THEMES.LIGHT : CONSTANTS.THEMES.DARK;
+    }
+
+    function formatNumber(num) {
+        return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function parseFormattedNumber(str) {
+        return parseInt(str.replace(/,/g, ''));
+    }
+
+    function convertTimeToMinutes(value, unit) {
+        switch(unit.toLowerCase()) {
+            case 'days': return value * 24 * 60;
+            case 'hours': return value * 60;
+            case 'minutes': return value;
+            default: return value;
+        }
+    }
+
+    function safeExecute(func, errorMessage, fallback = null) {
+        try {
+            return func();
+        } catch (error) {
+            console.error(`${errorMessage}:`, error);
+
+            showToast(`Error: ${errorMessage}`, 'error');
+
+            return fallback;
+        }
+    }
+
+    function formatDate(dateStr) {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric'
+        });
+    }
+    function showToast(message, type = 'info') {
+        const existingToast = document.getElementById('sidebar-toast');
+        if (existingToast) {
+            existingToast.remove();
+        }
+
+        const theme = getTheme();
+
+        const toast = document.createElement('div');
+        toast.id = 'sidebar-toast';
+
+        let backgroundColor, textColor, borderColor;
+        if (type === 'error') {
+            backgroundColor = isLightMode ? '#ffeeee' : '#552222';
+            textColor = isLightMode ? '#cc3333' : '#ffcccc';
+            borderColor = isLightMode ? '#ffcccc' : '#993333';
+        } else if (type === 'success') {
+            backgroundColor = isLightMode ? '#eeffee' : '#225522';
+            textColor = isLightMode ? '#33cc33' : '#ccffcc';
+            borderColor = isLightMode ? '#ccffcc' : '#339933';
+        } else {
+            backgroundColor = theme.SECONDARY_BG;
+            textColor = theme.TEXT;
+            borderColor = theme.BORDER;
+        }
+
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 50px;
+            left: ${CONSTANTS.SIDEBAR_WIDTH / 2 - 150}px;
+            width: 300px;
+            padding: 10px 15px;
+            background-color: ${backgroundColor};
+            color: ${textColor};
+            border: 1px solid ${borderColor};
+            border-radius: 5px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            z-index: 2000;
+            text-align: center;
+            animation: toastFadeIn 0.3s ease;
+        `;
+
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes toastFadeIn {
+                from { opacity: 0; transform: translateY(20px); }
+                to { opacity: 1; transform: translateY(0); }
+            }
+            @keyframes toastFadeOut {
+                from { opacity: 1; transform: translateY(0); }
+                to { opacity: 0; transform: translateY(20px); }
+            }
+        `;
+        document.head.appendChild(style);
+
+        toast.textContent = message;
+        document.body.appendChild(toast);
+
+        setTimeout(() => {
+            toast.style.animation = 'toastFadeOut 0.3s ease forwards';
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.parentNode.removeChild(toast);
+                }
+            }, 300);
+        }, 3000);
+    }
+
+    function validateState() {
+        if (!Array.isArray(groups)) {
+            console.error('Groups is not an array, resetting to default');
+            groups = [];
+        }
+
+        if (!Array.isArray(notepads)) {
+            console.error('Notepads is not an array, resetting to default');
+            notepads = [];
+        }
+
+        if (!Array.isArray(attackLists)) {
+            console.error('Attack lists is not an array, resetting to default');
+            attackLists = [];
+        }
+
+        if (!Array.isArray(todoLists)) {
+            console.error('Todo lists is not an array, resetting to default');
+            todoLists = [];
+        }
+
+        if (!loanTracker || typeof loanTracker !== 'object') {
+            console.error('Loan tracker is invalid, resetting to default');
+            loanTracker = { entries: [] };
+        } else if (!Array.isArray(loanTracker.entries)) {
+            loanTracker.entries = [];
+        }
+
+        if (!auctionTracker || typeof auctionTracker !== 'object') {
+            console.error('Auction tracker is invalid, resetting to default');
+            auctionTracker = { auctions: [] };
+        } else if (!Array.isArray(auctionTracker.auctions)) {
+            auctionTracker.auctions = [];
+        }
+
+        if (!Array.isArray(countdownGroups)) {
+            console.error('Countdown groups is not an array, resetting to default');
+            countdownGroups = [];
+        }
+
+        if (!Array.isArray(manualCountdownGroups)) {
+            console.error('Manual countdown groups is not an array, resetting to default');
+            manualCountdownGroups = [];
+        }
+
+        let auctionsUpdated = false;
+        auctionTracker.auctions.forEach(auction => {
+            if (auction.timeLeft !== undefined && auction.endTime === undefined) {
+                auction.endTime = Date.now() + (auction.timeLeft * 60 * 1000);
+                auction.created = Date.now();
+                delete auction.timeLeft;
+                auctionsUpdated = true;
+            }
+        });
+
+        if (auctionsUpdated) {
+            saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+        }
+
+        let loansUpdated = false;
+        loanTracker.entries.forEach(entry => {
+            if (!entry.payments) {
+                entry.payments = [];
+                entry.created = Date.now();
+                loansUpdated = true;
+            }
+        });
+
+        if (loansUpdated) {
+            saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+        }
+
+        // Ensure we only have one countdown group
+        if (countdownGroups.length > 1) {
+            // Merge all timers into the first group
+            for (let i = 1; i < countdownGroups.length; i++) {
+                if (countdownGroups[i].timers && Array.isArray(countdownGroups[i].timers)) {
+                    if (!countdownGroups[0].timers) {
+                        countdownGroups[0].timers = [];
+                    }
+                    countdownGroups[0].timers = countdownGroups[0].timers.concat(countdownGroups[i].timers);
+                }
+            }
+            // Keep only the first group
+            countdownGroups = [countdownGroups[0]];
+            saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+        }
+    }
+
+    function preserveSidebarAnimation() {
+        const sidebar = document.getElementById('enhanced-sidebar');
+        const toggleButton = document.getElementById('sidebar-toggle');
+
+        if (sidebar && toggleButton) {
+            const currentTransform = window.getComputedStyle(sidebar).transform;
+            const isHidden = currentTransform.includes('-102') || currentTransform.includes('matrix');
+
+            sidebar.style.transition = 'transform 0.3s ease-in-out';
+            toggleButton.style.transition = 'transform 0.3s ease-in-out, background-color 0.2s ease';
+
+            saveState(CONSTANTS.STATE_KEYS.SIDEBAR_STATE, { isHidden });
+        }
+    }
+
+    function getLighterColor(color) {
+        if (color.startsWith('#')) {
+            const hex = color.slice(1);
+            const num = parseInt(hex, 16);
+            const r = (num >> 16) + 20;
+            const g = ((num >> 8) & 0x00FF) + 20;
+            const b = (num & 0x0000FF) + 20;
+            return `#${(1 << 24 | r << 16 | g << 8 | b).toString(16).slice(1)}`;
+        }
+        return color;
+    }
+
+    function createResizer(element, onResize) {
+    const resizer = document.createElement('div');
+    resizer.setAttribute('data-resizer', 'true');
+    resizer.style.cssText = `
+        width: 20px;
+        height: 20px;
+        background-color: ${isLightMode ? '#999' : '#666'};
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        cursor: se-resize;
+        border-radius: 0 0 5px 0;
+        display: ${isEditMode ? 'flex' : 'none'};
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-size: 12px;
+        transition: background-color 0.2s;
+        z-index: 10;
+    `;
+    resizer.innerHTML = '⮧';
+
+    function handleResize(mouseEvent) {
+        // Prevent default browser behavior
+        mouseEvent.preventDefault();
+        mouseEvent.stopPropagation();
+
+        // Initial measurements
+        const startX = mouseEvent.clientX;
+        const startY = mouseEvent.clientY;
+        const startWidth = element.offsetWidth;
+        const startHeight = element.offsetHeight;
+
+        function resize(moveEvent) {
+            // Calculate the new dimensions - completely free, no grid snapping
+            const newWidth = startWidth + (moveEvent.clientX - startX);
+            const newHeight = startHeight + (moveEvent.clientY - startY);
+
+            // Apply only the boundary constraints
+            const sidebar = document.getElementById('enhanced-sidebar');
+            const maxWidth = sidebar.offsetWidth - 20; // Keep element within sidebar
+
+            // Constrain width and height but don't snap to grid
+            const constrainedWidth = Math.min(maxWidth, Math.max(CONSTANTS.MIN_GROUP_WIDTH, newWidth));
+            const constrainedHeight = Math.max(CONSTANTS.MIN_GROUP_HEIGHT, newHeight);
+
+            // Set the new size with exact pixel values
+            element.style.width = `${constrainedWidth}px`;
+            element.style.height = `${constrainedHeight}px`;
+
+            // Call the callback with the new dimensions
+            if (onResize) onResize(constrainedWidth, constrainedHeight);
+
+            // Prevent text selection
+            moveEvent.preventDefault();
+        }
+
+        function stopResize() {
+            document.removeEventListener('mousemove', resize);
+            document.removeEventListener('mouseup', stopResize);
+        }
+
+        document.addEventListener('mousemove', resize);
+        document.addEventListener('mouseup', stopResize);
+    }
+
+    // Use mousedown event to initiate resize
+    resizer.addEventListener('mousedown', handleResize);
+
+    resizer.addEventListener('mouseover', () => {
+        if (isEditMode) {
+            resizer.style.backgroundColor = isLightMode ? '#aaa' : '#777';
+        }
+    });
+
+    resizer.addEventListener('mouseout', () => {
+        resizer.style.backgroundColor = isLightMode ? '#999' : '#666';
+    });
+
+    return resizer;
+}
+
+    function createAddButton(onClick, theme, label = '+') {
+        const button = document.createElement('button');
+        button.textContent = label;
+        button.className = 'no-drag';
+        button.style.cssText = `
+            background-color: ${theme.SUCCESS};
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: ${label === '+' ? '16px' : '12px'};
+        `;
+
+        button.addEventListener('click', onClick);
+
+        button.addEventListener('mouseover', () => {
+            button.style.backgroundColor = getLighterColor(theme.SUCCESS);
+        });
+
+        button.addEventListener('mouseout', () => {
+            button.style.backgroundColor = theme.SUCCESS;
+        });
+
+        return button;
+    }
+
+    function createDeleteButton(onClick, theme, label = '✕') {
+        const button = document.createElement('button');
+        button.textContent = label;
+        button.className = 'no-drag';
+        button.style.cssText = `
+            background-color: ${theme.DANGER};
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: ${label === '✕' ? '14px' : '12px'};
+        `;
+
+        button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onClick();
+        });
+
+        button.addEventListener('mouseover', () => {
+            button.style.backgroundColor = getLighterColor(theme.DANGER);
+        });
+
+        button.addEventListener('mouseout', () => {
+            button.style.backgroundColor = theme.DANGER;
+        });
+
+        return button;
+    }
+
+    function createPaymentInput(entry, index, theme) {
+        const wrapper = document.createElement('div');
+        wrapper.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Payment';
+        input.style.cssText = `
+            width: 80px;
+            padding: 4px 6px;
+            border-radius: 3px;
+            border: 1px solid ${theme.BORDER};
+            background-color: ${theme.BG};
+            color: ${theme.TEXT};
+            font-size: 13px;
+        `;
+
+        input.addEventListener('input', (e) => {
+            let value = e.target.value.replace(/[^\d]/g, '');
+            if (value) {
+                value = parseInt(value).toLocaleString();
+                e.target.value = value;
+            }
+        });
+
+        const applyButton = document.createElement('button');
+        applyButton.textContent = 'Apply';
+        applyButton.className = 'no-drag';
+        applyButton.style.cssText = `
+            background-color: ${theme.SUCCESS};
+            color: white;
+            border: none;
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 13px;
+        `;
+
+        applyButton.addEventListener('click', () => {
+            if (!input.value) {
+                alert('Please enter a payment amount');
+                return;
+            }
+
+            const payment = parseFloat(input.value.replace(/,/g, ''));
+
+            if (isNaN(payment) || payment <= 0) {
+                alert('Please enter a valid payment amount');
+                return;
+            }
+
+            if (payment > entry.amount) {
+                confirmDelete(`The payment ($${payment.toLocaleString()}) is greater than the remaining loan amount ($${entry.amount.toLocaleString()}). The excess will be ignored. Continue?`, () => {
+                    processPayment(payment);
+                });
+            } else {
+                confirmDelete(`Apply payment of $${payment.toLocaleString()}?`, () => {
+                    processPayment(payment);
+                });
+            }
+        });
+
+        function processPayment(payment) {
+            const timestamp = Date.now();
+
+            const actualPayment = Math.min(payment, entry.amount);
+
+            if (!entry.payments) {
+                entry.payments = [];
+            }
+
+            entry.payments.push({
+                amount: actualPayment,
+                date: timestamp,
+                remaining: entry.amount - actualPayment
+            });
+
+            entry.amount -= actualPayment;
+
+            if (entry.amount <= 0) {
+                entry.amount = 0;
+
+                const paymentWrapper = wrapper.parentNode;
+                const paidIndicator = document.createElement('div');
+                paidIndicator.textContent = '✅ PAID';
+                paidIndicator.style.cssText = `
+                    color: ${theme.SUCCESS};
+                   font-weight: bold;
+                   padding: 5px;
+                `;
+               paymentWrapper.innerHTML = '';
+               paymentWrapper.appendChild(paidIndicator);
+
+               setTimeout(() => {
+                   loanTracker.entries.splice(index, 1);
+                   saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+                   refreshSidebar();
+               }, 2000);
+           }
+
+           input.value = '';
+
+           saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+           refreshSidebar();
+       }
+
+       wrapper.appendChild(input);
+       wrapper.appendChild(applyButton);
+       return wrapper;
+   }
+
+   function formatTimeLeft(endTime) {
+        const now = Date.now();
+        const remainingMs = endTime - now;
+
+        if (remainingMs <= 0) return "Ended";
+
+        const days = Math.floor(remainingMs / (24 * 60 * 60 * 1000));
+        const hours = Math.floor((remainingMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000));
+        const minutes = Math.floor((remainingMs % (60 * 60 * 1000)) / (60 * 1000));
+        const seconds = Math.floor((remainingMs % (60 * 1000)) / 1000);
+
+        if (days > 0) {
+            return `${days}d ${hours}h ${minutes}m`;
+        } else if (hours > 0) {
+            return `${hours}h ${minutes}m ${seconds}s`;
+        } else {
+            return `${minutes}m ${seconds}s`;
+        }
+    }
+
+    function isEnding(endTime) {
+        return (endTime - Date.now()) <= 15 * 60 * 1000;
+    }
+
+    function getAuctionColor(endTime, theme) {
+        const timeLeft = endTime - Date.now();
+
+        if (timeLeft <= 0) {
+            return theme.DANGER;
+        } else if (timeLeft <= 5 * 60 * 1000) {
+            return theme.DANGER;
+        } else if (timeLeft <= 15 * 60 * 1000) {
+            return '#FFA500';
+        } else {
+            return theme.SUCCESS;
+        }
+    }
+
+    function isOverdue(entry) {
+        if (!entry.dueDate) return false;
+
+        const now = new Date();
+        const due = new Date(entry.dueDate);
+        return now > due;
+    }
+
+    function getDueDateColor(entry, theme) {
+        if (!entry.dueDate) return theme.BORDER;
+
+        if (isOverdue(entry)) {
+            return theme.DANGER;
+        }
+
+        const now = new Date();
+        const due = new Date(entry.dueDate);
+        const daysUntilDue = Math.ceil((due - now) / (1000 * 60 * 60 * 24));
+
+        if (daysUntilDue <= 3) {
+            return '#FFA500';
+        }
+
+        return theme.SUCCESS;
+    }
+
+    function confirmDelete(message, callback) {
+        const theme = getTheme();
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        `;
+
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: ${theme.HEADER};
+            padding: 20px;
+            border-radius: 5px;
+            min-width: 300px;
+            border: 1px solid ${theme.BORDER};
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            color: ${theme.TEXT};
+        `;
+
+        dialog.innerHTML = `
+            <p style="margin: 0 0 20px 0;">${message}</p>
+            <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                <button class="cancelBtn" style="
+                    padding: 5px 15px;
+                    border-radius: 3px;
+                    border: none;
+                    background: ${theme.BUTTON_BG};
+                    color: ${theme.TEXT};
+                    cursor: pointer;
+                ">Cancel</button>
+                <button class="confirmBtn" style="
+                    padding: 5px 15px;
+                    border-radius: 3px;
+                    border: none;
+                    background: ${theme.DANGER};
+                    color: white;
+                    cursor: pointer;
+                ">Yes, Confirm</button>
+            </div>
+        `;
+
+        function cleanup() {
+            document.body.removeChild(overlay);
+        }
+
+        dialog.querySelector('.cancelBtn').addEventListener('click', cleanup);
+        dialog.querySelector('.confirmBtn').addEventListener('click', () => {
+            cleanup();
+            callback();
+        });
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                cleanup();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+    }
+
+function refreshSidebar() {
+    const groupContainer = document.getElementById('group-container');
+    if (!groupContainer) return;
+
+    try {
+        const scrollPosition = groupContainer.scrollTop;
+
+        // Clear the entire container first
+        groupContainer.innerHTML = '';
+
+        try {
+            const reversedGroups = [...groups].reverse();
+            reversedGroups.forEach((group, idx) => {
+                const originalIndex = groups.length - 1 - idx;
+                const groupDiv = createGroupElement(group, originalIndex);
+                groupContainer.appendChild(groupDiv);
+            });
+
+            if (countdownGroups.length > 0) {
+                countdownGroups.forEach((group, index) => {
+                    const countdownDiv = createCountdownElement(group, index);
+                    groupContainer.appendChild(countdownDiv);
+                });
+            }
+
+            notepads.forEach((notepad, index) => {
+                const notepadDiv = createNotepadElement(notepad, index);
+                groupContainer.appendChild(notepadDiv);
+            });
+
+            attackLists.forEach((list, index) => {
+                const attackListDiv = createAttackListElement(list, index);
+                groupContainer.appendChild(attackListDiv);
+            });
+
+            todoLists.forEach((list, index) => {
+                const todoListDiv = createTodoListElement(list, index);
+                groupContainer.appendChild(todoListDiv);
+            });
+
+            if (loanTracker.entries && loanTracker.entries.length > 0 || loanTracker.position) {
+                const loanTrackerDiv = createLoanTrackerElement();
+                groupContainer.appendChild(loanTrackerDiv);
+            }
+
+            if (auctionTracker.auctions && auctionTracker.auctions.length > 0 || auctionTracker.position) {
+                const auctionTrackerDiv = createAuctionTrackerElement();
+                groupContainer.appendChild(auctionTrackerDiv);
+            }
+
+            groupContainer.scrollTop = scrollPosition;
+
+            // Force mode-specific styling after refresh
+            if (isDeleteMode) {
+                document.querySelectorAll('.draggable').forEach(element => {
+                    const deleteBtn = element.querySelector('button[class*="delete"]');
+                    if (deleteBtn) {
+                        deleteBtn.style.display = 'flex';
+                    }
+                });
+            } else if (isEditMode) {
+                document.querySelectorAll('[data-resizer]').forEach(resizer => {
+                    resizer.style.display = 'flex';
+                });
+                document.querySelectorAll('.draggable').forEach(element => {
+                    element.style.cursor = 'move';
+                });
+            }
+        } catch (error) {
+            console.error('Error rendering elements:', error);
+
+            const errorMessage = document.createElement('div');
+            errorMessage.style.cssText = `
+                padding: 15px;
+                margin: 20px;
+                background-color: ${isLightMode ? '#ffeeee' : '#552222'};
+                border: 1px solid ${isLightMode ? '#ffcccc' : '#993333'};
+                color: ${isLightMode ? '#cc3333' : '#ffcccc'};
+                border-radius: 5px;
+                text-align: center;
+            `;
+            errorMessage.innerHTML = `
+                <div style="font-weight: bold; margin-bottom: 8px;">Error Refreshing Sidebar</div>
+                <div>${error.message}</div>
+                <div style="margin-top: 10px; font-size: 14px;">Try reloading the page or checking for script updates.</div>
+            `;
+            groupContainer.appendChild(errorMessage);
+        }
+    } catch (error) {
+        console.error('Critical error in refreshSidebar:', error);
+    }
+}
+
+    function checkTodoListResets() {
+        todoLists.forEach((list, index) => {
+            if (list.resetDaily) {
+                const now = new Date();
+                const utcHour = now.getUTCHours();
+                const utcMinute = now.getUTCMinutes();
+
+                if (utcHour === 0 && utcMinute === 0) {
+                    list.items = list.items.map(item => ({
+                        ...item,
+                        checked: false
+                    }));
+                    saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                    refreshSidebar();
+                }
+            }
+        });
+    }
+
+   function setupDragListeners(container) {
+    // Clear any existing listeners (in case this is called multiple times)
+    container.removeEventListener('mousedown', handleDragStart);
+
+    // Add the mousedown listener
+    container.addEventListener('mousedown', handleDragStart);
+
+    function handleDragStart(mouseEvent) {
+        // Only proceed if in edit mode
+        if (!isEditMode) return;
+
+        // Check for excluded elements
+        if (mouseEvent.target.classList.contains('no-drag') ||
+            mouseEvent.target.closest('.no-drag') ||
+            mouseEvent.target.hasAttribute('data-resizer') ||
+            mouseEvent.target.closest('[data-resizer]')) {
+            return;
+        }
+
+        // Find the draggable parent
+        const draggable = mouseEvent.target.closest('.draggable');
+        if (!draggable) return;
+
+        // Initial state
+        const startX = mouseEvent.clientX;
+        const startY = mouseEvent.clientY;
+        const startLeft = parseInt(draggable.style.left) || 0;
+        const startTop = parseInt(draggable.style.top) || 0;
+
+        // Visual feedback
+        const originalZIndex = draggable.style.zIndex;
+        const originalOpacity = draggable.style.opacity;
+
+        draggable.style.zIndex = '1000';
+        draggable.style.opacity = '0.8';
+
+        function drag(moveEvent) {
+            // Calculate delta movement - no grid snapping
+            const dx = moveEvent.clientX - startX;
+            const dy = moveEvent.clientY - startY;
+
+            // Calculate new position with exact pixels (no grid snapping)
+            const newLeft = startLeft + dx;
+            const newTop = startTop + dy;
+
+            // Get sidebar boundaries
+            const sidebar = document.getElementById('enhanced-sidebar');
+            const maxLeft = sidebar.offsetWidth - draggable.offsetWidth - 10;
+            const maxTop = sidebar.offsetHeight - draggable.offsetHeight - 10;
+
+            // Set position within bounds but without grid snapping
+            draggable.style.left = `${Math.max(0, Math.min(newLeft, maxLeft))}px`;
+            draggable.style.top = `${Math.max(0, Math.min(newTop, maxTop))}px`;
+
+            // Prevent text selection
+            moveEvent.preventDefault();
+            moveEvent.stopPropagation();
+        }
+
+        function stopDrag() {
+            // Remove event listeners
+            document.removeEventListener('mousemove', drag);
+            document.removeEventListener('mouseup', stopDrag);
+
+            // Restore visual state
+            draggable.style.zIndex = originalZIndex;
+            draggable.style.opacity = originalOpacity;
+
+            // Save position
+            const type = draggable.dataset.type;
+            const index = draggable.dataset.index;
+            const position = {
+                x: parseInt(draggable.style.left) || 0,
+                y: parseInt(draggable.style.top) || 0
+            };
+
+            try {
+                // Save based on element type
+                switch(type) {
+                    case 'group':
+                        groups[index].position = position;
+                        saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, groups);
+                        break;
+                    case 'notepad':
+                        notepads[index].position = position;
+                        saveState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${currentPage}`, notepads);
+                        break;
+                    case 'attackList':
+                        attackLists[index].position = position;
+                        saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, attackLists);
+                        break;
+                    case 'todoList':
+                        todoLists[index].position = position;
+                        saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                        break;
+                    case 'loanTracker':
+                        loanTracker.position = position;
+                        saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+                        break;
+                    case 'auctionTracker':
+                        auctionTracker.position = position;
+                        saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+                        break;
+                    case 'countdown':
+                        countdownGroups[index].position = position;
+                        saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+                        break;
+                    case 'manualCountdown':
+                        manualCountdownGroups[index].position = position;
+                        saveState(`${CONSTANTS.STATE_KEYS.MANUAL_COUNTDOWN_GROUPS}_${currentPage}`, manualCountdownGroups);
+                        break;
+                }
+            } catch (error) {
+                console.error('Error saving position:', error);
+            }
+        }
+
+        // Add the drag listeners
+        document.addEventListener('mousemove', drag);
+        document.addEventListener('mouseup', stopDrag);
+
+        // Prevent default browser behavior
+        mouseEvent.preventDefault();
+    }
+}
+    async function createPromptDialog(title, fields, existingDialogId = null) {
+        return new Promise((resolve) => {
+            const dialogId = existingDialogId || 'dialog_' + Date.now();
+            const theme = getTheme();
+
+            const overlay = createOverlay();
+            const dialog = createDialogContainer(title, theme);
+
+            dialog.innerHTML += `
+                <form id="promptForm_${dialogId}">
+                    ${createDialogFields(fields, dialogId, theme)}
+                    ${createDialogButtons(theme)}
+                </form>
+            `;
+
+            function cleanup() {
+                document.body.removeChild(overlay);
+                removeDialogState(dialogId);
+            }
+
+            const form = dialog.querySelector(`#promptForm_${dialogId}`);
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const values = {};
+                fields.forEach(field => {
+                    const input = document.getElementById(`${field.id}_${dialogId}`);
+                    values[field.id] = field.type === 'checkbox' ? input.checked : input.value;
+                });
+                cleanup();
+                resolve(values);
+            });
+
+            dialog.querySelector('.cancelBtn').addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            saveDialogState(dialogId, {
+                type: 'prompt',
+                title,
+                fields
+            });
+
+            const firstInput = dialog.querySelector('input');
+            if (firstInput) firstInput.focus();
+
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                    resolve(null);
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        });
+    }
+
+    function createOverlay() {
+        const overlay = document.createElement('div');
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+        `;
+        return overlay;
+    }
+
+    function createDialogContainer(title, theme) {
+        const dialog = document.createElement('div');
+        dialog.style.cssText = `
+            background: ${theme.HEADER};
+            padding: 20px;
+            border-radius: 5px;
+            min-width: 300px;
+            border: 1px solid ${theme.BORDER};
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        `;
+
+        dialog.innerHTML = `
+            <h3 style="color: ${theme.TEXT}; margin: 0 0 15px 0;">${title}</h3>
+        `;
+
+        return dialog;
+    }
+
+    function createDialogFields(fields, dialogId, theme) {
+        return fields.map(field => `
+            <div style="margin-bottom: 10px;">
+                <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">
+                    ${field.label}:
+                </label>
+                <input
+                    type="${field.type || 'text'}"
+                    id="${field.id}_${dialogId}"
+                    style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                        ${field.type === 'checkbox' ? 'width: auto;' : ''}
+                    "
+                    ${field.type === 'checkbox' ? 'class="checkbox-input"' : ''}
+                >
+            </div>
+        `).join('');
+    }
+
+    function createDialogButtons(theme) {
+        return `
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button
+                    type="button"
+                    class="cancelBtn"
+                    style="
+                        padding: 5px 15px;
+                        border-radius: 3px;
+                        border: none;
+                        background: ${theme.BUTTON_BG};
+                        color: ${theme.TEXT};
+                        cursor: pointer;
+                    "
+                >
+                    Cancel
+                </button>
+                <button
+                    type="submit"
+                    style="
+                        padding: 5px 15px;
+                        border-radius: 3px;
+                        border: none;
+                        background: ${theme.SUCCESS};
+                        color: white;
+                        cursor: pointer;
+                    "
+                >
+                    OK
+                </button>
+            </div>
+        `;
+    }
+
+    function createLinkDialog(groupIndex, existingDialogId = null) {
+        const dialogId = existingDialogId || 'linkdialog' + Date.now();
+        const theme = getTheme();
+
+        const overlay = createOverlay();
+        const dialog = createDialogContainer('Add Link', theme);
+
+        dialog.innerHTML += `
+            <form id="linkForm_${dialogId}">
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Link Name:</label>
+                    <input type="text" id="linkName_${dialogId}" style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                    ">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Link URL:</label>
+                    <input type="text" id="linkUrl_${dialogId}" style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                    ">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Emoji:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="linkEmoji_${dialogId}" style="
+                            flex: 1;
+                            padding: 5px;
+                            background: ${theme.BG};
+                            border: 1px solid ${theme.BORDER};
+                            color: ${theme.TEXT};
+                            border-radius: 3px;
+                        " placeholder="🔗">
+                        ${createEmojiButtons(theme)}
+                    </div>
+                </div>
+                ${createDialogButtons(theme)}
+            </form>
+        `;
+
+        setupEmojiLookup(dialog);
+
+        function cleanup() {
+            document.body.removeChild(overlay);
+            removeDialogState(dialogId);
+        }
+
+        const form = dialog.querySelector(`#linkForm_${dialogId}`);
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById(`linkName_${dialogId}`).value;
+            const url = document.getElementById(`linkUrl_${dialogId}`).value || window.location.href;
+            const emoji = document.getElementById(`linkEmoji_${dialogId}`).value;
+
+            if (name && url) {
+                groups[groupIndex].links.push({
+                    name,
+                    url,
+                    emoji: emoji || '🔗'
+                });
+                saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, groups);
+                refreshSidebar();
+            }
+            cleanup();
+        });
+
+        dialog.querySelector('.cancelBtn').addEventListener('click', cleanup);
+
+        overlay.appendChild(dialog);
+        document.body.appendChild(overlay);
+
+        saveDialogState(dialogId, {
+            type: 'link',
+            groupIndex,
+        });
+
+        document.getElementById(`linkName_${dialogId}`).focus();
+
+        const handleEscape = (e) => {
+            if (e.key === 'Escape') {
+                cleanup();
+                document.removeEventListener('keydown', handleEscape);
+            }
+        };
+        document.addEventListener('keydown', handleEscape);
+    }
+    function createEmojiButtons(theme) {
+        return `
+            <div class="emoji-button-container" style="position: relative;">
+                <button type="button" class="emoji-lookup" style="
+                    padding: 5px 10px;
+                    background: ${theme.BUTTON_BG};
+                    color: ${theme.TEXT};
+                    border: none;
+                    border-radius: 3px;
+                    cursor: pointer;
+                ">Emoji List</button>
+                <div class="tooltip" style="
+                    position: absolute;
+                    bottom: -25px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: ${theme.HEADER};
+                    color: ${theme.TEXT};
+                    padding: 4px 8px;
+                    border-radius: 3px;
+                    font-size: 12px;
+                    white-space: nowrap;
+                    display: none;
+                ">Opens Unicode Emoji Site</div>
+            </div>
+            <div class="emoji-button-container" style="position: relative;">
+                <button type="button" class="emoji-lookup-2" style="
+                    padding: 5px 10px;
+                    background: ${theme.BUTTON_BG};
+                    color: ${theme.TEXT};
+                    border: none;
+                    border-radius: 3px;
+                    cursor: pointer;
+                ">Emoji List 2</button>
+                <div class="tooltip" style="
+                    position: absolute;
+                    bottom: -25px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: ${theme.HEADER};
+                    color: ${theme.TEXT};
+                    padding: 4px 8px;
+                    border-radius: 3px;
+                    font-size: 12px;
+                    white-space: nowrap;
+                    display: none;
+                ">Opens Emoji Reference Site</div>
+            </div>
+        `;
+    }
+
+    function setupEmojiLookup(dialog) {
+        dialog.querySelectorAll('.emoji-button-container').forEach(container => {
+            const button = container.querySelector('button');
+            const tooltip = container.querySelector('.tooltip');
+
+            button.addEventListener('mouseover', () => {
+                tooltip.style.display = 'block';
+            });
+
+            button.addEventListener('mouseout', () => {
+                tooltip.style.display = 'none';
+            });
+        });
+
+        dialog.querySelector('.emoji-lookup').addEventListener('click', () => {
+            window.open('http://xahlee.info/comp/unicode_index.html', '_blank');
+        });
+
+        dialog.querySelector('.emoji-lookup-2').addEventListener('click', () => {
+            window.open('https://emojipedia.org', '_blank');
+        });
+    }
+
+    async function createLoanEntryDialog(existingDialogId = null) {
+        const dialogId = existingDialogId || 'loandialog' + Date.now();
+        const theme = getTheme();
+
+        const overlay = createOverlay();
+        const dialog = createDialogContainer('Add Loan Entry', theme);
+
+        dialog.innerHTML = `
+            <form id="loanEntryForm_${dialogId}">
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">User:</label>
+                    <input type="text" id="user_${dialogId}" style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                    ">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Amount:</label>
+                    <input
+                        type="text"
+                        id="amount_${dialogId}"
+                        placeholder="Enter amount (e.g., 1,000,000)"
+                        style="
+                            width: 100%;
+                            padding: 5px;
+                            background: ${theme.BG};
+                            border: 1px solid ${theme.BORDER};
+                            color: ${theme.TEXT};
+                            border-radius: 3px;
+                        "
+                    >
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Due Date (Optional):</label>
+                    <input
+                        type="date"
+                        id="dueDate_${dialogId}"
+                        style="
+                            width: 100%;
+                            padding: 5px;
+                            background: ${theme.BG};
+                            border: 1px solid ${theme.BORDER};
+                            color: ${theme.TEXT};
+                            border-radius: 3px;
+                        "
+                    >
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Notes (Optional):</label>
+                    <textarea
+                        id="notes_${dialogId}"
+                        style="
+                            width: 100%;
+                            height: 60px;
+                            padding: 5px;
+                            background: ${theme.BG};
+                            border: 1px solid ${theme.BORDER};
+                            color: ${theme.TEXT};
+                            border-radius: 3px;
+                            resize: none;
+                        "
+                    ></textarea>
+                </div>
+                ${createDialogButtons(theme)}
+            </form>
+        `;
+
+        return new Promise((resolve) => {
+            function cleanup() {
+                document.body.removeChild(overlay);
+                removeDialogState(dialogId);
+            }
+
+            const amountInput = dialog.querySelector(`#amount_${dialogId}`);
+            amountInput.addEventListener('input', (e) => {
+                let value = e.target.value.replace(/[^\d]/g, '');
+                if (value) {
+                    value = parseInt(value).toLocaleString();
+                    e.target.value = value;
+                }
+            });
+
+            dialog.querySelector('.cancelBtn').addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            dialog.querySelector('form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const user = document.getElementById(`user_${dialogId}`).value.trim();
+                const amountStr = document.getElementById(`amount_${dialogId}`).value;
+                const amount = parseFloat(amountStr.replace(/,/g, ''));
+                const dueDate = document.getElementById(`dueDate_${dialogId}`).value;
+                const notes = document.getElementById(`notes_${dialogId}`).value.trim();
+
+                if (!user) {
+                    alert('Please enter a user name');
+                    return;
+                }
+
+                if (!amountStr || isNaN(amount) || amount <= 0) {
+                    alert('Please enter a valid amount');
+                    return;
+                }
+
+                cleanup();
+                resolve({
+                    user,
+                    amount,
+                    dueDate: dueDate || null,
+                    notes: notes || '',
+                    created: Date.now(),
+                    payments: []
+                });
+            });
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            saveDialogState(dialogId, {
+                type: 'loanEntry'
+            });
+
+            document.getElementById(`user_${dialogId}`).focus();
+
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                    resolve(null);
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        });
+    }
+    async function createAuctionEntryDialog(existingDialogId = null) {
+        const dialogId = existingDialogId || 'auctiondialog' + Date.now();
+        const theme = getTheme();
+
+        const overlay = createOverlay();
+        const dialog = createDialogContainer('Add Auction Entry', theme);
+
+        dialog.innerHTML = `
+            <form id="auctionEntryForm_${dialogId}">
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Item:</label>
+                    <input type="text" id="item_${dialogId}" style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                    ">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Seller:</label>
+                    <input type="text" id="seller_${dialogId}" style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                    ">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Time Left:</label>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <div style="flex: 1;">
+                            <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Days:</label>
+                            <input type="number" id="timeDays_${dialogId}" min="0" value="0" style="
+                                width: 100%;
+                                padding: 5px;
+                                background: ${theme.BG};
+                                border: 1px solid ${theme.BORDER};
+                                color: ${theme.TEXT};
+                                border-radius: 3px;
+                            ">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Hours:</label>
+                            <input type="number" id="timeHours_${dialogId}" min="0" max="23" value="0" style="
+                                width: 100%;
+                                padding: 5px;
+                                background: ${theme.BG};
+                                border: 1px solid ${theme.BORDER};
+                                color: ${theme.TEXT};
+                                border-radius: 3px;
+                            ">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Minutes:</label>
+                            <input type="number" id="timeMinutes_${dialogId}" min="0" max="59" value="0" style="
+                                width: 100%;
+                                padding: 5px;
+                                background: ${theme.BG};
+                                border: 1px solid ${theme.BORDER};
+                                color: ${theme.TEXT};
+                                border-radius: 3px;
+                            ">
+                        </div>
+                    </div>
+                </div>
+                ${createDialogButtons(theme)}
+            </form>
+        `;
+
+        return new Promise((resolve) => {
+            function cleanup() {
+                document.body.removeChild(overlay);
+                removeDialogState(dialogId);
+            }
+
+            dialog.querySelector('.cancelBtn').addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            dialog.querySelector('form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const item = document.getElementById(`item_${dialogId}`).value.trim();
+                const seller = document.getElementById(`seller_${dialogId}`).value.trim();
+                const days = parseInt(document.getElementById(`timeDays_${dialogId}`).value) || 0;
+                const hours = parseInt(document.getElementById(`timeHours_${dialogId}`).value) || 0;
+                const minutes = parseInt(document.getElementById(`timeMinutes_${dialogId}`).value) || 0;
+
+                if (!item) {
+                    alert('Please enter an item name');
+                    return;
+                }
+
+                if (!seller) {
+                    alert('Please enter a seller name');
+                    return;
+                }
+
+                if (days === 0 && hours === 0 && minutes === 0) {
+                    alert('Please enter a valid time value');
+                    return;
+                }
+
+                const totalMinutes = (days * 24 * 60) + (hours * 60) + minutes;
+                cleanup();
+                resolve({ item, seller, timeLeft: totalMinutes });
+            });
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            saveDialogState(dialogId, {
+                type: 'auctionEntry'
+            });
+
+            document.getElementById(`item_${dialogId}`).focus();
+
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                    resolve(null);
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        });
+    }
+
+    async function createManualCountdownDialog(existingDialogId = null) {
+        const dialogId = existingDialogId || 'countdowndialog' + Date.now();
+        const theme = getTheme();
+
+        const overlay = createOverlay();
+        const dialog = createDialogContainer('Add Custom Countdown', theme);
+
+        dialog.innerHTML = `
+            <form id="countdownForm_${dialogId}">
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Countdown Name:</label>
+                    <input type="text" id="name_${dialogId}" style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                    ">
+                </div>
+
+                <div style="margin-bottom: 10px;">
+                    <div style="color: ${theme.TEXT}; margin-bottom: 5px; font-weight: bold;">Select Time Input Method:</div>
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <input type="radio" name="timeMethod_${dialogId}" value="duration" checked>
+                            Duration
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px;">
+                            <input type="radio" name="timeMethod_${dialogId}" value="datetime">
+                            Date/Time
+                        </label>
+                    </div>
+                </div>
+
+                <div id="durationInputs_${dialogId}">
+                    <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+                        <div style="flex: 1;">
+                            <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Days:</label>
+                            <input type="number" id="timeDays_${dialogId}" min="0" value="0" style="
+                                width: 100%;
+                                padding: 5px;
+                                background: ${theme.BG};
+                                border: 1px solid ${theme.BORDER};
+                                color: ${theme.TEXT};
+                                border-radius: 3px;
+                            ">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Hours:</label>
+                            <input type="number" id="timeHours_${dialogId}" min="0" max="23" value="0" style="
+                                width: 100%;
+                                padding: 5px;
+                                background: ${theme.BG};
+                                border: 1px solid ${theme.BORDER};
+                                color: ${theme.TEXT};
+                                border-radius: 3px;
+                            ">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Minutes:</label>
+                            <input type="number" id="timeMinutes_${dialogId}" min="0" max="59" value="0" style="
+                                width: 100%;
+                                padding: 5px;
+                                background: ${theme.BG};
+                                border: 1px solid ${theme.BORDER};
+                                color: ${theme.TEXT};
+                                border-radius: 3px;
+                            ">
+                        </div>
+                    </div>
+                </div>
+
+                <div id="dateTimeInputs_${dialogId}" style="display: none;">
+                    <div style="display: flex; gap: 10px;">
+                        <div style="flex: 2;">
+                            <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">End Date:</label>
+                            <input type="date" id="endDate_${dialogId}" style="
+                                width: 100%;
+                                padding: 5px;
+                                background: ${theme.BG};
+                                border: 1px solid ${theme.BORDER};
+                                color: ${theme.TEXT};
+                                border-radius: 3px;
+                            ">
+                        </div>
+                        <div style="flex: 1;">
+                            <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">End Time:</label>
+                            <input type="time" id="endTime_${dialogId}" style="
+                                width: 100%;
+                                padding: 5px;
+                                background: ${theme.BG};
+                                border: 1px solid ${theme.BORDER};
+                                color: ${theme.TEXT};
+                                border-radius: 3px;
+                            ">
+                        </div>
+                    </div>
+                </div>
+
+                ${createDialogButtons(theme)}
+            </form>
+        `;
+
+        const radioButtons = dialog.querySelectorAll(`input[name="timeMethod_${dialogId}"]`);
+        const durationInputs = dialog.querySelector(`#durationInputs_${dialogId}`);
+        const dateTimeInputs = dialog.querySelector(`#dateTimeInputs_${dialogId}`);
+
+        radioButtons.forEach(radio => {
+            radio.addEventListener('change', (e) => {
+                if (e.target.value === 'duration') {
+                    durationInputs.style.display = 'block';
+                    dateTimeInputs.style.display = 'none';
+                    dialog.querySelector(`#endDate_${dialogId}`).value = '';
+                    dialog.querySelector(`#endTime_${dialogId}`).value = '';
+                } else {
+                    durationInputs.style.display = 'none';
+                    dateTimeInputs.style.display = 'block';
+                    dialog.querySelector(`#timeDays_${dialogId}`).value = 0;
+                    dialog.querySelector(`#timeHours_${dialogId}`).value = 0;
+                    dialog.querySelector(`#timeMinutes_${dialogId}`).value = 0;
+                }
+            });
+        });
+
+        return new Promise((resolve) => {
+            function cleanup() {
+                document.body.removeChild(overlay);
+                removeDialogState(dialogId);
+            }
+
+            dialog.querySelector('form').addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = document.getElementById(`name_${dialogId}`).value.trim();
+                const timeMethod = dialog.querySelector(`input[name="timeMethod_${dialogId}"]:checked`).value;
+
+                let endTime;
+                if (timeMethod === 'duration') {
+                    const days = parseInt(document.getElementById(`timeDays_${dialogId}`).value) || 0;
+                    const hours = parseInt(document.getElementById(`timeHours_${dialogId}`).value) || 0;
+                    const minutes = parseInt(document.getElementById(`timeMinutes_${dialogId}`).value) || 0;
+
+                    const totalMinutes = (days * 24 * 60) + (hours * 60) + minutes;
+                    endTime = Date.now() + (totalMinutes * 60 * 1000);
+                } else {
+                    const endDate = document.getElementById(`endDate_${dialogId}`).value;
+                    const endTimeValue = document.getElementById(`endTime_${dialogId}`).value;
+
+                    if (!endDate || !endTimeValue) {
+                        alert('Please select both date and time');
+                        return;
+                    }
+
+                    endTime = new Date(`${endDate}T${endTimeValue}`).getTime();
+                }
+
+                if (!name) {
+                    alert('Please enter a countdown name');
+                    return;
+                }
+
+                const now = new Date();
+                if (endTime <= now) {
+                    alert('End time must be in the future');
+                    return;
+                }
+
+                const oneYearFromNow = new Date(now);
+                oneYearFromNow.setFullYear(now.getFullYear() + 1);
+
+                if (endTime > oneYearFromNow) {
+                    alert('Countdown cannot be more than one year in the future');
+                    return;
+                }
+
+                cleanup();
+                resolve({
+                    name,
+                    endTime
+                });
+            });
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            saveDialogState(dialogId, {
+                type: 'manualCountdown'
+            });
+
+            document.getElementById(`name_${dialogId}`).focus();
+
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                    resolve(null);
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        });
+    }
+    function createSidebar() {
+    const sidebar = document.createElement('div');
+    sidebar.id = 'enhanced-sidebar';
+    const theme = getTheme();
+    const persistentState = loadState(CONSTANTS.STATE_KEYS.SIDEBAR_STATE, { isHidden: false });
+
+    sidebar.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: ${CONSTANTS.SIDEBAR_WIDTH}px;
+        height: 100%;
+        background-color: ${theme.BG};
+        color: ${theme.TEXT};
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        border-right: 2px solid ${theme.BORDER};
+        transition: transform 0.3s ease-in-out;
+        transform: translateX(${persistentState.isHidden ? '-102%' : '0'});
+        will-change: transform;
+        overflow-x: hidden; /* Prevent horizontal scrolling */
+        box-sizing: border-box; /* Include borders in width calculation */
+    `;
+
+        sidebar.style.msOverflowStyle = 'none';
+        sidebar.style.scrollbarWidth = 'none';
+        sidebar.addEventListener('scroll', () => {
+            sidebar.style.overflowY = 'hidden';
+        });
+
+        const topBar = createTopBar();
+        const groupContainer = createGroupContainer();
+        const tagline = createTagline();
+        const pageSelector = createPageSelector(theme);
+
+        pageSelector.style.cssText = `
+            position: absolute;
+            bottom: 50px;
+            left: 10px;
+            z-index: 1101;
+        `;
+
+        sidebar.appendChild(topBar);
+        sidebar.appendChild(groupContainer);
+        sidebar.appendChild(tagline);
+        sidebar.appendChild(pageSelector);
+
+        document.body.appendChild(sidebar);
+        setupDragListeners(groupContainer);
+        refreshSidebar();
+
+        const toggleButton = createToggleButton(sidebar);
+        document.body.appendChild(toggleButton);
+
+        return sidebar;
+    }
+
+    function createToggleButton(sidebar) {
+        const toggleButton = document.createElement('button');
+        toggleButton.id = 'sidebar-toggle';
+        toggleButton.textContent = '☰';
+        toggleButton.title = 'Toggle SideWinder';
+        const theme = getTheme();
+
+        toggleButton.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background-color: ${theme.BUTTON_BG};
+            color: ${theme.TEXT};
+            border: none;
+            padding: 10px 15px;
+            font-size: 18px;
+            cursor: pointer;
+            z-index: 9999;
+            transition: transform 0.3s ease-in-out;
+            border-radius: 4px;
+            visibility: visible !important;
+            opacity: 1 !important;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        `;
+
+        toggleButton.addEventListener('click', () => {
+            const sidebarState = loadState(CONSTANTS.STATE_KEYS.SIDEBAR_STATE, { isHidden: false });
+            const newHiddenState = !sidebarState.isHidden;
+
+            saveState(CONSTANTS.STATE_KEYS.SIDEBAR_STATE, { isHidden: newHiddenState });
+
+            requestAnimationFrame(() => {
+                sidebar.style.transform = newHiddenState ? 'translateX(-102%)' : 'translateX(0)';
+                toggleButton.style.transform = newHiddenState ? 'rotate(180deg)' : 'rotate(0deg)';
+                toggleButton.style.backgroundColor = newHiddenState ?
+                    theme.SECONDARY_BG : theme.BUTTON_BG;
+            });
+        });
+
+        toggleButton.addEventListener('mouseover', () => {
+            toggleButton.style.backgroundColor = loadState(CONSTANTS.STATE_KEYS.SIDEBAR_STATE, { isHidden: false }).isHidden ?
+                theme.HEADER : theme.SECONDARY_BG;
+        });
+
+        toggleButton.addEventListener('mouseout', () => {
+            toggleButton.style.backgroundColor = loadState(CONSTANTS.STATE_KEYS.SIDEBAR_STATE, { isHidden: false }).isHidden ?
+                theme.SECONDARY_BG : theme.BUTTON_BG;
+        });
+
+        return toggleButton;
+    }
+
+    function createGroupContainer() {
+        const container = document.createElement('div');
+        container.id = 'group-container';
+        container.style.cssText = `
+            flex-grow: 1;
+            padding: 10px;
+            margin-top: 50px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow-y: auto;
+        `;
+        return container;
+    }
+
+    function createTagline() {
+        const container = document.createElement('div');
+        const theme = getTheme();
+
+        container.style.cssText = `
+            position: absolute;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: ${theme.TEXT};
+            font-style: italic;
+            font-size: 14px;
+            text-align: center;
+            pointer-events: none;
+            white-space: nowrap;
+        `;
+
+        container.textContent = CONSTANTS.TAGLINES[Math.floor(Math.random() * CONSTANTS.TAGLINES.length)];
+        return container;
+    }
+
+    function createTopBar() {
+        const topBar = document.createElement('div');
+        topBar.id = 'top-bar';
+        const theme = getTheme();
+
+        topBar.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background-color: ${theme.HEADER};
+            border-bottom: 1px solid ${theme.BORDER};
+            width: 100%;
+            position: absolute;
+            top: 0;
+            height: 50px;
+            box-sizing: border-box;
+            z-index: 1101;
+        `;
+
+        const trademarkContainer = document.createElement('div');
+        trademarkContainer.style.cssText = `
+            position: absolute;
+            left: 60px;
+            color: white;
+            font-style: italic;
+            font-size: 14px;
+            white-space: nowrap;
+            pointer-events: none;
+            margin-left: 10px;
+        `;
+        trademarkContainer.textContent = CONSTANTS.TRADEMARK;
+        topBar.appendChild(trademarkContainer);
+
+        const buttonsContainer = document.createElement('div');
+        buttonsContainer.style.cssText = `
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin-left: auto;
+        `;
+
+        const buttons = [
+            { id: 'clockButton', icon: '🕒', color: theme.BUTTON_BG, action: toggleClock, title: 'Toggle Clock' },
+            { id: 'calculatorButton', icon: '🧮', color: theme.BUTTON_BG, action: showCalculator, title: 'Calculator' },
+            { id: 'deleteButton', icon: '🗑️', color: theme.DANGER, action: toggleDeleteMode, title: 'Delete Mode' },
+            { id: 'editButton', icon: '🛠', color: theme.BUTTON_BG, action: toggleEditMode, title: 'Edit Mode' },
+            { id: 'addButton', icon: '➕', color: theme.SUCCESS, action: showAddMenu, title: 'Add Group' }
+        ];
+
+        buttons.forEach(({ id, icon, color, action, title }) => {
+            const button = createModeButton(id, icon, color, action, title);
+            buttonsContainer.appendChild(button);
+        });
+
+        topBar.appendChild(buttonsContainer);
+        return topBar;
+    }
+
+    function createPageSelector(theme) {
+        const container = document.createElement('div');
+        container.id = 'page-selector';
+        container.style.cssText = `
+            position: absolute;
+            bottom: 50px;
+            left: 50px;
+            z-index: 1101;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        `;
+
+        const tooltip = document.createElement('div');
+        tooltip.textContent = 'Page Selector';
+        tooltip.style.cssText = `
+            position: absolute;
+            background-color: ${theme.HEADER};
+            color: ${theme.TEXT};
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            bottom: 0;
+            right: -10px;
+            transform: translateX(100%);
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.3s, visibility 0.3s;
+            pointer-events: none;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+        `;
+        container.appendChild(tooltip);
+
+        const currentPageCircle = document.createElement('div');
+        currentPageCircle.style.cssText = `
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background-color: ${theme.BUTTON_BG};
+            color: ${theme.TEXT};
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transition: all 0.2s ease;
+            position: relative;
+        `;
+        currentPageCircle.innerHTML = '📑';
+        container.appendChild(currentPageCircle);
+
+        currentPageCircle.addEventListener('mouseenter', () => {
+            tooltip.style.opacity = '1';
+            tooltip.style.visibility = 'visible';
+        });
+
+        currentPageCircle.addEventListener('mouseleave', () => {
+            tooltip.style.opacity = '0';
+            tooltip.style.visibility = 'hidden';
+        });
+
+        const pageMenu = document.createElement('div');
+        pageMenu.id = 'page-menu';
+        pageMenu.style.cssText = `
+            position: absolute;
+            left: 0;
+            bottom: 40px;
+            display: none;
+            flex-direction: column-reverse;
+            gap: 10px;
+            z-index: 1200;
+            transition: all 0.3s ease;
+            padding-bottom: 5px;
+        `;
+
+        function setupPageCircleEvents(pageCircle, pageIndex) {
+            pageCircle.addEventListener('mouseover', () => {
+                if (pageIndex !== currentPage) {
+                    pageCircle.style.backgroundColor = theme.SECONDARY_BG;
+                    pageCircle.style.transform = 'scale(1.1)';
+                }
+            });
+
+            pageCircle.addEventListener('mouseout', () => {
+                if (pageIndex !== currentPage) {
+                    pageCircle.style.backgroundColor = theme.BG;
+                    pageCircle.style.transform = 'scale(1)';
+                }
+            });
+
+            pageCircle.addEventListener('click', () => {
+                if (pageIndex !== currentPage) {
+                    changePage(pageIndex);
+                    currentPageCircle.innerHTML = '📑';
+                    showPageNumber(pageIndex + 1);
+                    pageMenu.style.display = 'none';
+                    isPageMenuOpen = false;
+                }
+            });
+        }
+
+        function showPageNumber(number) {
+            const originalContent = currentPageCircle.innerHTML;
+            currentPageCircle.innerHTML = number;
+
+            setTimeout(() => {
+                currentPageCircle.innerHTML = originalContent;
+            }, 1000);
+        }
+
+        for (let i = 0; i < 3; i++) {
+            const pageCircle = document.createElement('div');
+
+            pageCircle.textContent = (i + 1);
+            pageCircle.style.cssText = `
+                width: 30px;
+                height: 30px;
+                border-radius: 50%;
+                background-color: ${i === currentPage ? theme.BUTTON_BG : theme.BG};
+                color: ${theme.TEXT};
+                border: 1px solid ${theme.BORDER};
+                cursor: pointer;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                font-weight: bold;
+                transition: background-color 0.2s ease, transform 0.2s ease;
+                transform: scale(${i === currentPage ? 1.1 : 1});
+            `;
+
+            setupPageCircleEvents(pageCircle, i);
+
+            pageMenu.appendChild(pageCircle);
+        }
+
+        container.appendChild(pageMenu);
+
+        let isPageMenuOpen = false;
+
+        currentPageCircle.addEventListener('click', () => {
+            isPageMenuOpen = !isPageMenuOpen;
+            if (isPageMenuOpen) {
+                pageMenu.style.display = 'flex';
+                currentPageCircle.style.transform = 'scale(1.1)';
+            } else {
+                pageMenu.style.display = 'none';
+                currentPageCircle.style.transform = 'scale(1)';
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!container.contains(e.target) && isPageMenuOpen) {
+                pageMenu.style.display = 'none';
+                isPageMenuOpen = false;
+                currentPageCircle.style.transform = 'scale(1)';
+            }
+        });
+
+        return container;
+    }
+function createModeButton(id, icon, color, action, title) {
+    const button = document.createElement('button');
+    button.id = id;
+    button.innerHTML = icon;
+    button.title = title || '';
+    const theme = getTheme();
+
+    // For delete button, only use red when delete mode is active
+    let buttonColor = color;
+    if (id === 'deleteButton') {
+        buttonColor = isDeleteMode ? theme.DANGER : theme.BUTTON_BG;
+    }
+    // For edit button, only use green when edit mode is active
+    else if (id === 'editButton') {
+        buttonColor = isEditMode ? theme.SUCCESS : theme.BUTTON_BG;
+    }
+    // For clock button, highlight when active
+    else if (id === 'clockButton') {
+        buttonColor = clockVisible ? getLighterColor(theme.BUTTON_BG) : theme.BUTTON_BG;
+    }
+
+    button.style.cssText = `
+        background-color: ${buttonColor};
+        color: white;
+        border: none;
+        padding: 8px;
+        font-size: 16px;
+        cursor: pointer;
+        width: 36px;
+        height: 36px;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: none;
+        position: relative;
+    `;
+
+    // Create tooltip
+    const tooltip = document.createElement('div');
+    tooltip.textContent = title || '';
+    tooltip.style.cssText = `
+        position: absolute;
+        top: -25px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: ${theme.HEADER};
+        color: ${theme.TEXT};
+        padding: 4px 8px;
+        border-radius: 3px;
+        font-size: 12px;
+        white-space: nowrap;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s, visibility 0.3s;
+        pointer-events: none;
+        z-index: 1200;
+    `;
+    button.appendChild(tooltip);
+
+    button.addEventListener('mouseenter', () => {
+        tooltip.style.opacity = '1';
+        tooltip.style.visibility = 'visible';
+    });
+
+    button.addEventListener('mouseleave', () => {
+        tooltip.style.opacity = '0';
+        tooltip.style.visibility = 'hidden';
+    });
+
+    button.addEventListener('click', () => {
+        preserveSidebarAnimation();
+        action();
+
+        // Update button appearance after action
+        if (id === 'deleteButton') {
+            button.style.backgroundColor = isDeleteMode ? theme.DANGER : theme.BUTTON_BG;
+        } else if (id === 'editButton') {
+            button.style.backgroundColor = isEditMode ? theme.SUCCESS : theme.BUTTON_BG;
+        } else if (id === 'clockButton') {
+            button.style.backgroundColor = clockVisible ? getLighterColor(theme.BUTTON_BG) : theme.BUTTON_BG;
+        }
+
+        // Handle highlighting of active buttons
+        const buttons = document.querySelectorAll('#top-bar button');
+        buttons.forEach(btn => {
+            if ((btn.id === 'editButton' && isEditMode) ||
+                (btn.id === 'deleteButton' && isDeleteMode) ||
+                (btn.id === 'clockButton' && clockVisible)) {
+                btn.style.boxShadow = '0 0 15px rgba(255, 255, 255, 0.5)';
+            } else {
+                btn.style.boxShadow = 'none';
+            }
+        });
+    });
+
+    button.addEventListener('mouseover', () => {
+        // For delete button, handle hover based on mode
+        if (id === 'deleteButton') {
+            button.style.backgroundColor = isDeleteMode ?
+                getLighterColor(theme.DANGER) : getLighterColor(theme.BUTTON_BG);
+        } else if (id === 'editButton') {
+            button.style.backgroundColor = isEditMode ?
+                getLighterColor(theme.SUCCESS) : getLighterColor(theme.BUTTON_BG);
+        } else {
+            button.style.backgroundColor = getLighterColor(buttonColor);
+        }
+    });
+
+    button.addEventListener('mouseout', () => {
+        // Restore original colors on mouseout
+        if (id === 'deleteButton') {
+            button.style.backgroundColor = isDeleteMode ? theme.DANGER : theme.BUTTON_BG;
+        } else if (id === 'editButton') {
+            button.style.backgroundColor = isEditMode ? theme.SUCCESS : theme.BUTTON_BG;
+        } else {
+            button.style.backgroundColor = buttonColor;
+        }
+    });
+
+    return button;
+}
+
+    function toggleLightMode() {
+        isLightMode = !isLightMode;
+        const sidebar = document.getElementById('enhanced-sidebar');
+        const theme = getTheme();
+
+        if (sidebar) {
+            sidebar.style.backgroundColor = theme.BG;
+            sidebar.style.color = theme.TEXT;
+
+            const textElements = sidebar.querySelectorAll('div, span, p');
+            textElements.forEach(element => {
+                if (!element.classList.contains('no-light-mode')) {
+                    element.style.color = theme.TEXT;
+                }
+            });
+
+            const trademarkContainer = sidebar.querySelector('#top-bar div');
+            if (trademarkContainer) {
+                trademarkContainer.style.color = 'white';
+            }
+        }
+
+        saveState(CONSTANTS.STATE_KEYS.LIGHT_MODE, isLightMode);
+        refreshSidebar();
+    }
+
+function toggleDeleteMode() {
+    isDeleteMode = !isDeleteMode;
+    isEditMode = false;
+
+    const sidebar = document.getElementById('enhanced-sidebar');
+    const theme = getTheme();
+    const deleteButton = document.getElementById('deleteButton');
+
+    if (sidebar) {
+        sidebar.style.backgroundColor = isDeleteMode ?
+            theme.DANGER : (isLightMode ? theme.BG : theme.BG);
+    }
+
+    // Update all delete buttons in ALL elements
+    document.querySelectorAll('.draggable').forEach(element => {
+        const deleteBtn = element.querySelector('button[class*="delete"]');
+        if (deleteBtn) {
+            deleteBtn.style.display = isDeleteMode ? 'flex' : 'none';
+        }
+    });
+
+    // Update the main delete button in top bar
+    if (deleteButton) {
+        deleteButton.style.backgroundColor = isDeleteMode ? theme.DANGER : theme.BUTTON_BG;
+    }
+
+    // Also reset edit mode and hide resizers
+    const editButton = document.getElementById('editButton');
+    if (editButton) {
+        editButton.style.backgroundColor = theme.BUTTON_BG;
+    }
+    document.querySelectorAll('[data-resizer]').forEach(resizer => {
+        resizer.style.display = 'none';
+    });
+
+    refreshSidebar();
+
+    if (isDeleteMode) {
+        showToast('Delete Mode Activated', 'info');
+    } else {
+        showToast('Delete Mode Deactivated', 'info');
+    }
+}
+
+function toggleEditMode() {
+    isEditMode = !isEditMode;
+    isDeleteMode = false;
+
+    const sidebar = document.getElementById('enhanced-sidebar');
+    const theme = getTheme();
+    const editButton = document.getElementById('editButton');
+
+    if (sidebar) {
+        sidebar.style.backgroundColor = isEditMode ?
+            theme.SUCCESS : (isLightMode ? theme.BG : theme.BG);
+    }
+
+    // Update all resizers
+    document.querySelectorAll('[data-resizer]').forEach(resizer => {
+        resizer.style.display = isEditMode ? 'flex' : 'none';
+    });
+
+    // Update all draggable elements
+    document.querySelectorAll('.draggable').forEach(element => {
+        element.style.cursor = isEditMode ? 'move' : 'default';
+
+        // Hide delete buttons when in edit mode
+        const deleteBtn = element.querySelector('button[class*="delete"]');
+        if (deleteBtn) {
+            deleteBtn.style.display = 'none';
+        }
+    });
+
+    // Update edit button
+    if (editButton) {
+        editButton.style.backgroundColor = isEditMode ? theme.SUCCESS : theme.BUTTON_BG;
+    }
+
+    // Also reset delete button
+    const deleteButton = document.getElementById('deleteButton');
+    if (deleteButton) {
+        deleteButton.style.backgroundColor = theme.BUTTON_BG;
+    }
+
+    refreshSidebar();
+
+    if (isEditMode) {
+        showToast('Edit Mode Activated', 'info');
+    } else {
+        showToast('Edit Mode Deactivated', 'info');
+    }
+}
+
+    function toggleClock() {
+        clockVisible = !clockVisible;
+
+        const existingClock = document.getElementById('torn-city-clock');
+        if (existingClock) {
+            existingClock.remove();
+        }
+
+        if (clockVisible) {
+            showClock();
+            showToast('Clock Activated', 'info');
+        } else {
+            showToast('Clock Deactivated', 'info');
+        }
+
+        const clockButton = document.getElementById('clockButton');
+        if (clockButton) {
+            clockButton.style.boxShadow = clockVisible ?
+                '0 0 15px rgba(255, 255, 255, 0.5)' : 'none';
+        }
+    }
+
+function showClock() {
+    const theme = getTheme();
+    const sidebar = document.getElementById('enhanced-sidebar');
+
+    if (!sidebar || !clockVisible) return;
+
+    const clockContainer = document.createElement('div');
+    clockContainer.id = 'torn-city-clock';
+    clockContainer.style.cssText = `
+        position: absolute;
+        top: 60px;
+        right: 10px;
+        background-color: ${theme.SECONDARY_BG};
+        border: 1px solid ${theme.BORDER};
+        border-radius: 5px;
+        padding: 10px;
+        width: 220px;
+        z-index: 1200;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        color: ${theme.TEXT};
+        text-align: center;
+    `;
+
+    const timeDisplay = document.createElement('div');
+    timeDisplay.style.cssText = `
+        font-size: 28px;
+        font-weight: bold;
+        margin-bottom: 5px;
+    `;
+
+    const dateDisplay = document.createElement('div');
+    dateDisplay.style.cssText = `
+        font-size: 14px;
+        margin-bottom: 8px;
+    `;
+
+    // Add day reset countdown to clock
+    const resetCountdown = document.createElement('div');
+    resetCountdown.style.cssText = `
+        font-size: 14px;
+        padding-top: 5px;
+        border-top: 1px solid ${theme.BORDER};
+        font-weight: bold;
+    `;
+
+    clockContainer.appendChild(timeDisplay);
+    clockContainer.appendChild(dateDisplay);
+    clockContainer.appendChild(resetCountdown);
+    sidebar.appendChild(clockContainer);
+
+    function updateClock() {
+        if (!clockVisible) return;
+
+        const now = new Date();
+        const utcHours = now.getUTCHours();
+        const utcMinutes = now.getUTCMinutes();
+        const utcSeconds = now.getUTCSeconds();
+
+        const timeString =
+            `${utcHours.toString().padStart(2, '0')}:${utcMinutes.toString().padStart(2, '0')}:${utcSeconds.toString().padStart(2, '0')}`;
+
+        const options = {
+            weekday: 'short',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            timeZone: 'UTC'
+        };
+        const dateString = now.toLocaleDateString('en-US', options);
+
+        timeDisplay.textContent = timeString;
+        dateDisplay.textContent = dateString;
+
+        // Update day reset countdown
+        updateDayResetCountdown(resetCountdown);
+    }
+
+    updateClock();
+
+    const clockInterval = setInterval(updateClock, 1000);
+    clockContainer.dataset.intervalId = clockInterval;
+
+    // Add click-outside behavior to close clock
+    document.addEventListener('click', function closeClockOutside(e) {
+        if (clockVisible && clockContainer && !clockContainer.contains(e.target) && e.target.id !== 'clockButton') {
+            toggleClock();
+            document.removeEventListener('click', closeClockOutside);
+        }
+    });
+}
+
+    function updateDayResetCountdown(element) {
+        if (!element) return;
+
+        const now = new Date();
+        const resetTime = new Date(now);
+        resetTime.setUTCHours(0, 0, 0, 0);
+        resetTime.setUTCDate(resetTime.getUTCDate() + 1);
+
+        const remainingTime = resetTime - now;
+        const hours = Math.floor(remainingTime / 3600000);
+        const minutes = Math.floor((remainingTime % 3600000) / 60000);
+        const seconds = Math.floor((remainingTime % 60000) / 1000);
+
+        element.textContent = `${hours} Hours, ${minutes} Minutes, ${seconds} Seconds Until Day Reset`;
+    }
+
+    function showAddMenu() {
+        const existingMenu = document.getElementById('addMenu');
+        if (existingMenu) {
+            existingMenu.remove();
+            return;
+        }
+
+        const theme = getTheme();
+        const menu = document.createElement('div');
+        menu.id = 'addMenu';
+        menu.style.cssText = `
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background-color: ${theme.SECONDARY_BG};
+            border: 1px solid ${theme.BORDER};
+            border-radius: 4px;
+            padding: 5px;
+            z-index: 1200;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        `;
+
+        const options = [
+            { text: 'Add Group', action: addGroup },
+            { text: 'Add Notepad', action: addNotepad },
+            { text: 'Add Attack List', action: addAttackList },
+            { text: 'Add Todo List', action: addTodoList },
+            { text: 'Add Loan Tracker', action: addLoanTracker },
+            { text: 'Add Auction Tracker', action: addAuctionTracker },
+            { text: 'Add Timer Group', action: addCountdownGroup }
+        ];
+
+        options.forEach(option => {
+            const button = createAddMenuButton(option, theme);
+            menu.appendChild(button);
+        });
+
+        document.querySelector('#top-bar').appendChild(menu);
+
+        const closeMenu = (e) => {
+            if (!menu.contains(e.target) && e.target.id !== 'addButton') {
+                menu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    }
+
+    function createAddMenuButton(option, theme) {
+        const button = document.createElement('button');
+        button.textContent = option.text;
+        button.style.cssText = `
+            display: block;
+            width: 100%;
+            padding: 8px;
+            margin: 2px 0;
+            background-color: ${theme.BG};
+            color: ${theme.TEXT};
+            border: 1px solid ${theme.BORDER};
+            cursor: pointer;
+            text-align: left;
+            border-radius: 3px;
+            transition: background-color 0.2s ease;
+        `;
+
+        button.addEventListener('mouseover', () => {
+            button.style.backgroundColor = theme.SECONDARY_BG;
+        });
+
+        button.addEventListener('mouseout', () => {
+            button.style.backgroundColor = theme.BG;
+        });
+
+        button.addEventListener('click', () => {
+            option.action();
+            document.getElementById('addMenu').remove();
+        });
+
+        return button;
+    }
+
+    function getCurrentPageUserId() {
+        const currentUrl = window.location.href;
+
+        if (currentUrl.includes('profiles.php') || currentUrl.includes('profile.php')) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('XID') || urlParams.get('ID');
+
+            if (userId && !isNaN(parseInt(userId))) {
+                return parseInt(userId);
+            }
+        }
+
+        // Try to find user ID in DOM
+        const userIdElement = document.querySelector('[class*="userID"], [class*="userId"], [id*="userID"], [id*="userId"]');
+        if (userIdElement && userIdElement.textContent) {
+            const extractedId = parseInt(userIdElement.textContent.trim());
+            if (!isNaN(extractedId)) {
+                return extractedId;
+            }
+        }
+
+        return null;
+    }
+
+    async function addGroup() {
+        const result = await createPromptDialog('Add Group', [
+            { id: 'groupName', label: 'Group Name', type: 'text' }
+        ]);
+
+        if (result && result.groupName) {
+            const newGroup = {
+                name: result.groupName,
+                links: [],
+                position: { x: 0, y: 0 },
+                size: { width: CONSTANTS.MIN_GROUP_WIDTH, height: 'auto' }
+            };
+            groups.unshift(newGroup);
+            saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, groups);
+            refreshSidebar();
+            showToast(`Group "${result.groupName}" added`, 'success');
+        }
+    }
+
+    async function addNotepad() {
+        const result = await createPromptDialog('Add Notepad', [
+            { id: 'notepadName', label: 'Notepad Name', type: 'text' }
+        ]);
+
+        if (result && result.notepadName) {
+            notepads.push({
+                name: result.notepadName,
+                content: '',
+                position: { x: 0, y: 0 },
+                size: { width: 200, height: 150 }
+            });
+            saveState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${currentPage}`, notepads);
+            refreshSidebar();
+            showToast(`Notepad "${result.notepadName}" added`, 'success');
+        }
+    }
+
+    async function addAttackList() {
+        const result = await createPromptDialog('Add Attack List', [
+            { id: 'listName', label: 'List Name', type: 'text' }
+        ]);
+
+        if (result && result.listName) {
+            attackLists.push({
+                name: result.listName,
+                targets: [],
+                attackUrl: 'https://www.torn.com/loader.php?sid=attack&user2ID=',
+                position: { x: 0, y: 0 },
+                size: { width: 200, height: 'auto' }
+            });
+            saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, attackLists);
+            refreshSidebar();
+            showToast(`Attack list "${result.listName}" added`, 'success');
+        }
+    }
+
+    async function addTodoList() {
+        const result = await createPromptDialog('Add Todo List', [
+            { id: 'listName', label: 'List Name', type: 'text' },
+            { id: 'resetDaily', label: 'Reset Daily?', type: 'checkbox' }
+        ]);
+
+        if (result && result.listName) {
+            const newTodoList = {
+                name: result.listName,
+                items: [],
+                resetDaily: result.resetDaily,
+                position: { x: 0, y: 0 },
+                size: { width: 200, height: 'auto' }
+            };
+
+            todoLists.push(newTodoList);
+            saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+
+            if (newTodoList.resetDaily) {
+                setupDailyReset(todoLists.length - 1);
+            }
+
+            refreshSidebar();
+            showToast(`Todo list "${result.listName}" added`, 'success');
+        }
+    }
+
+    async function addAuctionTracker() {
+        if (!auctionTracker.position) {
+            auctionTracker.position = { x: 0, y: 0 };
+            auctionTracker.size = { width: 200, height: 'auto' };
+            saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+        }
+        refreshSidebar();
+        showToast('Auction tracker added', 'success');
+    }
+    async function addAuctionEntry() {
+        const result = await createAuctionEntryDialog();
+        if (result) {
+            const now = Date.now();
+            const endTime = now + (result.timeLeft * 60 * 1000);
+
+            auctionTracker.auctions.push({
+                item: result.item,
+                seller: result.seller,
+                endTime: endTime,
+                created: now
+            });
+
+            saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+            refreshSidebar();
+
+            if (result.timeLeft > 5) {
+                setTimeout(() => {
+                    if (Notification.permission === "granted") {
+                        new Notification(`Auction Ending Soon: ${result.item}`, {
+                            body: `Seller: ${result.seller} - Ending in 5 minutes!`
+                        });
+                    }
+                }, (result.timeLeft - 5) * 60 * 1000);
+            }
+
+            showToast(`Auction for "${result.item}" added`, 'success');
+        }
+    }
+
+    function initializeAuctionUpdates() {
+        const auctionCheckInterval = setInterval(() => {
+            const now = Date.now();
+            let hasChanges = false;
+
+            const initialCount = auctionTracker.auctions.length;
+            auctionTracker.auctions = auctionTracker.auctions.filter(auction => {
+                return auction.endTime > now;
+            });
+
+            if (auctionTracker.auctions.length !== initialCount) {
+                hasChanges = true;
+                saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+            }
+
+            refreshSidebar();
+
+        }, 1000);  // Check every second to ensure timely updates
+
+        window.auctionCheckIntervalId = auctionCheckInterval;
+    }
+
+    async function addLoanTracker() {
+        if (!loanTracker.position) {
+            loanTracker.position = { x: 0, y: 0 };
+            loanTracker.size = { width: 200, height: 'auto' };
+            saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+        }
+        refreshSidebar();
+        showToast('Loan tracker added', 'success');
+    }
+
+    async function addLoanEntry() {
+        const result = await createLoanEntryDialog();
+        if (result) {
+            if (!loanTracker.entries) {
+                loanTracker.entries = [];
+            }
+
+            loanTracker.entries.push(result);
+            saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+            refreshSidebar();
+            showToast(`Loan for ${result.user} added`, 'success');
+        }
+    }
+
+    async function addCountdownGroup() {
+        // First check if we already have a countdown group
+        if (countdownGroups.length > 0) {
+            showToast('Timer group already exists', 'info');
+            return;
+        }
+
+        const result = await createPromptDialog('Add Timer Group', [
+            { id: 'groupName', label: 'Group Name', type: 'text' }
+        ]);
+
+        if (result && result.groupName) {
+            const newGroup = {
+                name: result.groupName || 'Timers',
+                position: { x: 0, y: 0 },
+                size: { width: 200, height: 'auto' },
+                timers: []
+            };
+
+            countdownGroups.unshift(newGroup);
+            saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+            refreshSidebar();
+            showToast('Timer group added', 'success');
+        }
+    }
+
+    async function addManualCountdownGroup() {
+        const result = await createManualCountdownDialog();
+        if (result) {
+            // If we don't have a countdown group yet, create one
+            if (countdownGroups.length === 0) {
+                const newGroup = {
+                    name: 'Timers',
+                    position: { x: 0, y: 0 },
+                    size: { width: 200, height: 'auto' },
+                    timers: []
+                };
+                countdownGroups.unshift(newGroup);
+            }
+
+            if (!countdownGroups[0].timers) {
+                countdownGroups[0].timers = [];
+            }
+
+            countdownGroups[0].timers.push({
+                name: result.name,
+                endTime: result.endTime,
+                completed: false
+            });
+
+            saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+            refreshSidebar();
+            showToast(`Custom countdown "${result.name}" added`, 'success');
+        }
+    }
+
+    function setupDailyReset(listIndex) {
+        setInterval(() => {
+            const now = new Date();
+            const utcHour = now.getUTCHours();
+            const utcMinute = now.getUTCMinutes();
+
+            if (utcHour === 0 && utcMinute === 0) {
+                const list = todoLists[listIndex];
+                if (list && list.items) {
+                    list.items = list.items.map(item => ({
+                        ...item,
+                        checked: false
+                    }));
+                    saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                    refreshSidebar();
+                    showToast(`Reset todo list: ${list.name}`, 'info');
+                }
+            }
+        }, 1000);  // Check every second
+    }
+
+    function updateManualCountdown(element, endTime) {
+        const now = Date.now();
+        const remainingTime = endTime - now;
+
+        if (remainingTime <= 0) {
+            if (element) {
+                element.textContent = "Finished";
+                element.style.color = "#999";
+
+                const parent = element.parentNode;
+                if (parent && !parent.querySelector('.remove-timer-btn')) {
+                    const removeBtn = document.createElement('button');
+                    removeBtn.textContent = 'Remove';
+                    removeBtn.className = 'remove-timer-btn';
+                    removeBtn.style.cssText = `
+                        background-color: ${getTheme().DANGER};
+                        color: white;
+                        border: none;
+                        padding: 2px 6px;
+                        margin-left: 10px;
+                        border-radius: 3px;
+                        cursor: pointer;
+                        font-size: 12px;
+                    `;
+
+                    removeBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const timerContainer = parent.closest('.timer-container');
+                        if (timerContainer) {
+                            const countdownElement = timerContainer.closest('[data-type="countdown"]');
+                            if (countdownElement) {
+                                const index = countdownElement.dataset.index;
+                                const timerIndex = Array.from(countdownElement.querySelectorAll('.timer-container')).indexOf(timerContainer);
+
+                                countdownGroups[index].timers[timerIndex - 1].completed = true;
+                                saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+                                refreshSidebar();
+                            }
+                        }
+                    });
+
+                    parent.appendChild(removeBtn);
+                }
+            }
+            return false;
+        }
+
+        const days = Math.floor(remainingTime / (24 * 3600000));
+        const hours = Math.floor((remainingTime % (24 * 3600000)) / 3600000);
+        const minutes = Math.floor((remainingTime % 3600000) / 60000);
+        const seconds = Math.floor((remainingTime % 60000) / 1000);
+
+        let timeString = "";
+        if (days > 0) {
+            timeString += `${days}d `;
+        }
+
+        timeString += `${hours}h ${minutes}m ${seconds}s`;
+
+        if (element) {
+            element.textContent = timeString;
+
+            if (remainingTime < 60000) {
+                element.style.color = getTheme().DANGER;
+            } else if (remainingTime < 300000) {
+                element.style.color = "#FFA500";
+            } else {
+                element.style.color = getTheme().TEXT;
+            }
+        }
+
+        return true;
+    }
+
+    async function addTarget(list, index) {
+        const result = await createPromptDialog('Add Target', [
+            { id: 'targetName', label: 'Target Name', type: 'text' },
+            { id: 'targetId', label: 'Player ID', type: 'text' }
+        ]);
+
+        if (result && result.targetName && result.targetId) {
+            try {
+                const targetId = parseInt(result.targetId);
+                if (isNaN(targetId)) {
+                    throw new Error('Invalid Player ID');
+                }
+
+                list.targets.push({
+                    name: result.targetName,
+                    id: targetId
+                });
+                saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, attackLists);
+                refreshSidebar();
+                showToast(`Target "${result.targetName}" added`, 'success');
+            } catch (error) {
+                alert('Please enter a valid Player ID');
+            }
+        }
+    }
+    function addCurrentPageUserToList(list, index) {
+        const userId = getCurrentPageUserId();
+
+        if (!userId) {
+            showToast('Could not find user ID on current page', 'error');
+            return;
+        }
+
+        const existingTarget = list.targets.find(target => target.id === userId);
+        if (existingTarget) {
+            showToast(`User already in attack list`, 'info');
+            return;
+        }
+
+        // Try to get user name with enhanced methods
+        let userName = "Target";
+
+        try {
+            // Multiple selectors for different page layouts
+            const selectors = [
+                '.profile-container .name',
+                '.user-info .name',
+                '.title-black',
+                '#skip-to-content h4'
+            ];
+
+            // Try each selector
+            for (const selector of selectors) {
+                const element = document.querySelector(selector);
+                if (element && element.textContent.trim()) {
+                    userName = element.textContent.trim();
+                    break;
+                }
+            }
+
+            // If name not found in DOM elements, try page title
+            if (userName === "Target" && document.title && document.title.includes('-')) {
+                const titleParts = document.title.split('-');
+                if (titleParts.length > 1) {
+                    const potentialName = titleParts[0].trim();
+                    if (potentialName && potentialName !== "Torn") {
+                        userName = potentialName;
+                    }
+                }
+            }
+        } catch (e) {
+            console.error('Error getting username:', e);
+        }
+
+        list.targets.push({
+            name: userName,
+            id: userId
+        });
+
+        saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, attackLists);
+        refreshSidebar();
+        showToast(`Added ${userName} to attack list`, 'success');
+    }
+
+    async function addTodoItem(listIndex) {
+        const dialogId = 'todoItem' + Date.now();
+        const theme = getTheme();
+
+        const overlay = createOverlay();
+        const dialog = createDialogContainer('Add Todo Item', theme);
+
+        dialog.innerHTML += `
+            <form id="todoItemForm_${dialogId}">
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Task Name:</label>
+                    <input type="text" id="itemName_${dialogId}" style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                    ">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Link (Optional):</label>
+                    <input type="text" id="itemUrl_${dialogId}" style="
+                        width: 100%;
+                        padding: 5px;
+                        background: ${theme.BG};
+                        border: 1px solid ${theme.BORDER};
+                        color: ${theme.TEXT};
+                        border-radius: 3px;
+                    ">
+                </div>
+                <div style="margin-bottom: 10px;">
+                    <label style="color: ${theme.TEXT}; display: block; margin-bottom: 5px;">Emoji:</label>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="itemEmoji_${dialogId}" style="
+                            flex: 1;
+                            padding: 5px;
+                            background: ${theme.BG};
+                            border: 1px solid ${theme.BORDER};
+                            color: ${theme.TEXT};
+                            border-radius: 3px;
+                        " placeholder="✅">
+                        ${createEmojiButtons(theme)}
+                    </div>
+                </div>
+                ${createDialogButtons(theme)}
+            </form>
+        `;
+
+        setupEmojiLookup(dialog);
+
+        function cleanup() {
+            document.body.removeChild(overlay);
+        }
+
+        return new Promise((resolve) => {
+            const form = dialog.querySelector(`#todoItemForm_${dialogId}`);
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const itemName = document.getElementById(`itemName_${dialogId}`).value.trim();
+                const itemUrl = document.getElementById(`itemUrl_${dialogId}`).value.trim();
+                const itemEmoji = document.getElementById(`itemEmoji_${dialogId}`).value.trim() || '✅';
+
+                if (!itemName) {
+                    alert('Please enter a task name');
+                    return;
+                }
+
+                cleanup();
+                resolve({
+                    name: itemName,
+                    url: itemUrl,
+                    emoji: itemEmoji
+                });
+            });
+
+            dialog.querySelector('.cancelBtn').addEventListener('click', () => {
+                cleanup();
+                resolve(null);
+            });
+
+            overlay.appendChild(dialog);
+            document.body.appendChild(overlay);
+
+            document.getElementById(`itemName_${dialogId}`).focus();
+
+            const handleEscape = (e) => {
+                if (e.key === 'Escape') {
+                    cleanup();
+                    resolve(null);
+                    document.removeEventListener('keydown', handleEscape);
+                }
+            };
+            document.addEventListener('keydown', handleEscape);
+        }).then(result => {
+            if (result) {
+                const list = todoLists[listIndex];
+                list.items.push({
+                    name: result.name,
+                    url: result.url || '',
+                    emoji: result.emoji,
+                    checked: false
+                });
+                saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                refreshSidebar();
+                showToast(`Todo item "${result.name}" added`, 'success');
+            }
+        });
+    }
+    function createGroupElement(group, index) {
+        const theme = getTheme();
+        const groupDiv = document.createElement('div');
+        groupDiv.className = 'draggable';
+        groupDiv.dataset.type = 'group';
+        groupDiv.dataset.index = index;
+
+        groupDiv.style.cssText = `
+            background-color: ${theme.SECONDARY_BG};
+            padding: 10px;
+            border: 1px solid ${theme.BORDER};
+            border-radius: 5px;
+            position: absolute;
+            width: ${group.size?.width || CONSTANTS.MIN_GROUP_WIDTH}px;
+            height: ${group.size?.height || 'auto'};
+            left: ${group.position?.x || 0}px;
+            top: ${group.position?.y || 0}px;
+            ${isEditMode ? 'cursor: move;' : ''}
+        `;
+
+        const header = createGroupHeader(group, index, theme);
+        const linksContainer = createLinksContainer(group, index, theme);
+
+        groupDiv.appendChild(header);
+        groupDiv.appendChild(linksContainer);
+
+        if (isEditMode) {
+            const resizer = createResizer(groupDiv, (width, height) => {
+                group.size = { width, height };
+                saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, groups);
+            });
+            groupDiv.appendChild(resizer);
+        }
+
+        return groupDiv;
+    }
+
+    function createGroupHeader(group, index, theme) {
+        const header = document.createElement('div');
+        header.style.cssText = `
+            color: ${theme.TEXT};
+            font-size: 16px;
+            padding: 5px;
+            background-color: ${theme.HEADER};
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        `;
+        header.textContent = group.name;
+
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+        const addLinkButton = createAddButton(() => createLinkDialog(index), theme);
+        buttonContainer.appendChild(addLinkButton);
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this group?', () => {
+                    groups.splice(index, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, groups);
+                    refreshSidebar();
+                    showToast(`Group "${group.name}" deleted`, 'info');
+                });
+            }, theme);
+            buttonContainer.appendChild(deleteButton);
+        }
+
+        header.appendChild(buttonContainer);
+        return header;
+    }
+
+    function createLinksContainer(group, index, theme) {
+        const container = document.createElement('div');
+        container.className = 'content-container';
+        container.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        `;
+
+        group.links?.forEach((link, linkIndex) => {
+            const linkDiv = createLinkElement(link, group, index, linkIndex, theme);
+            container.appendChild(linkDiv);
+        });
+
+        return container;
+    }
+
+    function createLinkElement(link, group, groupIndex, linkIndex, theme) {
+        const linkDiv = document.createElement('div');
+        linkDiv.className = 'no-drag';
+        linkDiv.style.cssText = `
+            background-color: ${theme.BG};
+            color: ${isLightMode ? '#0066cc' : '#8cb3d9'};
+            border: 1px solid ${theme.BORDER};
+            padding: 3px 6px;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+
+        const linkText = document.createElement('span');
+        linkText.textContent = `${link.emoji || '🔗'} ${link.name}`;
+        linkDiv.appendChild(linkText);
+
+        const buttonWrapper = document.createElement('div');
+        buttonWrapper.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+        if (isEditMode) {
+            const moveButtons = createLinkMoveButtons(groupIndex, linkIndex, group.links.length, theme);
+            buttonWrapper.appendChild(moveButtons);
+        }
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this link?', () => {
+                    group.links.splice(linkIndex, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, groups);
+                    refreshSidebar();
+                    showToast(`Link "${link.name}" deleted`, 'info');
+                });
+            }, theme);
+            buttonWrapper.appendChild(deleteButton);
+        }
+
+        linkDiv.appendChild(buttonWrapper);
+        linkDiv.addEventListener('click', () => {
+            window.location.href = link.url;
+        });
+
+        return linkDiv;
+    }
+
+    function createLinkMoveButtons(groupIndex, linkIndex, totalLinks, theme) {
+        const container = document.createElement('div');
+        container.style.cssText = `
+            display: flex;
+            gap: 3px;
+            margin-left: 5px;
+        `;
+
+        if (linkIndex > 0) {
+            container.appendChild(createMoveButton('↑', () => {
+                moveLink(groupIndex, linkIndex, linkIndex - 1);
+            }, theme));
+        }
+
+        if (linkIndex < totalLinks - 1) {
+            container.appendChild(createMoveButton('↓', () => {
+                moveLink(groupIndex, linkIndex, linkIndex + 1);
+            }, theme));
+        }
+
+        return container;
+    }
+
+    function createMoveButton(text, action, theme) {
+        const button = document.createElement('button');
+        button.innerHTML = text;
+        button.className = 'no-drag';
+        button.style.cssText = `
+            background: none;
+            border: none;
+            color: ${theme.TEXT};
+            cursor: pointer;
+            padding: 0 2px;
+            font-size: 12px;
+            font-weight: bold;
+            transition: transform 0.2s;
+        `;
+
+        button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            action();
+        });
+
+        button.addEventListener('mouseover', () => {
+            button.style.transform = 'scale(1.2)';
+        });
+
+        button.addEventListener('mouseout', () => {
+            button.style.transform = 'scale(1)';
+        });
+
+        return button;
+    }
+
+    function moveLink(groupIndex, fromIndex, toIndex) {
+        const links = groups[groupIndex].links;
+        const [movedLink] = links.splice(fromIndex, 1);
+        links.splice(toIndex, 0, movedLink);
+        saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${currentPage}`, groups);
+        refreshSidebar();
+    }
+
+    function createNotepadElement(notepad, index) {
+    const theme = getTheme();
+    const notepadDiv = document.createElement('div');
+    notepadDiv.className = 'draggable';
+    notepadDiv.dataset.type = 'notepad';
+    notepadDiv.dataset.index = index;
+
+    notepadDiv.style.cssText = `
+        background-color: ${isLightMode ? '#e6f3f3' : '#1f3333'};
+        padding: 10px;
+        border: 1px solid ${isLightMode ? '#cce6e6' : '#446666'};
+        border-radius: 5px;
+        position: absolute;
+        width: ${notepad.size?.width || 200}px;
+        height: ${notepad.size?.height || 150}px;
+        left: ${notepad.position?.x || 0}px;
+        top: ${notepad.position?.y || 0}px;
+        ${isEditMode ? 'cursor: move;' : ''}
+    `;
+
+    const header = document.createElement('div');
+    header.style.cssText = `
+        color: ${theme.TEXT};
+        font-size: 16px;
+        padding: 5px;
+        background-color: ${isLightMode ? '#d9ebeb' : '#2a4444'};
+        border-radius: 3px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    `;
+    header.textContent = notepad.name;
+
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+    // Always create the delete button but only show it in delete mode
+    const deleteButton = createDeleteButton(() => {
+        confirmDelete('Delete this notepad?', () => {
+            notepads.splice(index, 1);
+            saveState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${currentPage}`, notepads);
+            refreshSidebar();
+            showToast(`Notepad "${notepad.name}" deleted`, 'info');
+        });
+    }, theme);
+
+    deleteButton.style.display = isDeleteMode ? 'flex' : 'none';
+    buttonContainer.appendChild(deleteButton);
+
+    header.appendChild(buttonContainer);
+    notepadDiv.appendChild(header);
+
+    const textarea = document.createElement('textarea');
+    textarea.className = 'no-drag content-container';
+    textarea.value = notepad.content || '';
+    textarea.style.cssText = `
+        width: 100%;
+        height: calc(100% - 40px);
+        background-color: ${isLightMode ? '#f0f7f7' : '#264040'};
+        color: ${theme.TEXT};
+        border: 1px solid ${isLightMode ? '#cce6e6' : '#446666'};
+        resize: none;
+        padding: 5px;
+        display: block;
+        font-family: monospace;
+    `;
+
+    textarea.addEventListener('input', (e) => {
+        notepad.content = e.target.value;
+        saveState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${currentPage}`, notepads);
+    });
+
+    notepadDiv.appendChild(textarea);
+
+    // Always create the resizer but only display it in edit mode
+    const resizer = createResizer(notepadDiv, (width, height) => {
+        notepad.size = { width, height };
+        saveState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${currentPage}`, notepads);
+    });
+    resizer.style.display = isEditMode ? 'flex' : 'none';
+    notepadDiv.appendChild(resizer);
+
+    return notepadDiv;
+}
+
+    function createAttackListElement(list, index) {
+        const theme = getTheme();
+        const attackListDiv = document.createElement('div');
+        attackListDiv.className = 'draggable';
+        attackListDiv.dataset.type = 'attackList';
+        attackListDiv.dataset.index = index;
+
+        attackListDiv.style.cssText = `
+            background-color: ${isLightMode ? '#f7e6e6' : '#331f1f'};
+            padding: 10px;
+            border: 1px solid ${isLightMode ? '#e6cccc' : '#664444'};
+            border-radius: 5px;
+            position: absolute;
+            width: ${list.size?.width || 200}px;
+            height: ${list.size?.height || 'auto'};
+            left: ${list.position?.x || 0}px;
+            top: ${list.position?.y || 0}px;
+            ${isEditMode ? 'cursor: move;' : ''}
+        `;
+
+        const header = createAttackListHeader(list, index, theme);
+        attackListDiv.appendChild(header);
+
+        const targetsContainer = createTargetsContainer(list, index, theme);
+        attackListDiv.appendChild(targetsContainer);
+
+        if (isEditMode) {
+            const resizer = createResizer(attackListDiv, (width, height) => {
+                list.size = { width, height };
+                saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, attackLists);
+            });
+            attackListDiv.appendChild(resizer);
+        }
+
+        return attackListDiv;
+    }
+
+    function createAttackListHeader(list, index, theme) {
+        const header = document.createElement('div');
+        header.style.cssText = `
+            color: ${theme.TEXT};
+            font-size: 16px;
+            padding: 5px;
+            background-color: ${isLightMode ? '#ebd9d9' : '#442a2a'};
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+        header.textContent = list.name;
+
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+        const addTargetButton = createAddButton(() => addTarget(list, index), theme);
+        buttonContainer.appendChild(addTargetButton);
+
+        const addCurrentUserButton = document.createElement('button');
+        addCurrentUserButton.textContent = '👤';
+        addCurrentUserButton.title = 'Add Current Page Target (MUST BE ON USERS PROFILE, Currently does not pull name)';
+        addCurrentUserButton.className = 'no-drag';
+        addCurrentUserButton.style.cssText = `
+            background-color: ${theme.BUTTON_BG};
+            color: white;
+            border: none;
+            padding: 2px 6px;
+            cursor: pointer;
+            border-radius: 3px;
+            font-size: 14px;
+        `;
+
+        addCurrentUserButton.addEventListener('click', () => {
+            addCurrentPageUserToList(list, index);
+        });
+
+        addCurrentUserButton.addEventListener('mouseover', () => {
+            addCurrentUserButton.style.backgroundColor = getLighterColor(theme.BUTTON_BG);
+        });
+
+        addCurrentUserButton.addEventListener('mouseout', () => {
+            addCurrentUserButton.style.backgroundColor = theme.BUTTON_BG;
+        });
+
+        buttonContainer.appendChild(addCurrentUserButton);
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this attack list?', () => {
+                    attackLists.splice(index, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, attackLists);
+                    refreshSidebar();
+                    showToast(`Attack list "${list.name}" deleted`, 'info');
+                });
+            }, theme);
+            buttonContainer.appendChild(deleteButton);
+        }
+
+        header.appendChild(buttonContainer);
+        return header;
+    }
+
+    function createTargetsContainer(list, index, theme) {
+        const container = document.createElement('div');
+        container.className = 'content-container';
+        container.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-top: 10px;
+        `;
+
+        list.targets?.forEach((target, targetIndex) => {
+            const targetDiv = createTargetElement(target, list, index, targetIndex, theme);
+            container.appendChild(targetDiv);
+        });
+
+        return container;
+    }
+
+    function createTargetElement(target, list, listIndex, targetIndex, theme) {
+        const targetDiv = document.createElement('div');
+        targetDiv.style.cssText = `
+            background-color: ${isLightMode ? '#f0e6e6' : '#442222'};
+            padding: 4px 8px;
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+
+        const targetName = document.createElement('span');
+        targetName.textContent = target.name;
+        targetName.style.cssText = `color: ${theme.TEXT};`;
+        targetDiv.appendChild(targetName);
+
+        const buttonWrapper = document.createElement('div');
+        buttonWrapper.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+        const attackButton = document.createElement('button');
+        attackButton.innerHTML = '⚔️';
+        attackButton.className = 'no-drag';
+        attackButton.style.cssText = 'background: none; border: none; cursor: pointer; padding: 0 3px;';
+        attackButton.addEventListener('click', () => {
+            window.location.href = `${list.attackUrl}${target.id}`;
+        });
+        buttonWrapper.appendChild(attackButton);
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this target?', () => {
+                    list.targets.splice(targetIndex, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${currentPage}`, attackLists);
+                    refreshSidebar();
+                    showToast(`Target "${target.name}" deleted`, 'info');
+                });
+            }, theme);
+            buttonWrapper.appendChild(deleteButton);
+        }
+
+        targetDiv.appendChild(buttonWrapper);
+        return targetDiv;
+    }
+    function createTodoListElement(list, index) {
+        const theme = getTheme();
+        const todoListDiv = document.createElement('div');
+        todoListDiv.className = 'draggable';
+        todoListDiv.dataset.type = 'todoList';
+        todoListDiv.dataset.index = index;
+
+        todoListDiv.style.cssText = `
+            background-color: ${theme.SECONDARY_BG};
+            padding: 10px;
+            border: 1px solid ${theme.BORDER};
+            border-radius: 5px;
+            position: absolute;
+            width: ${list.size?.width || 200}px;
+            height: ${list.size?.height || 'auto'};
+            left: ${list.position?.x || 0}px;
+            top: ${list.position?.y || 0}px;
+            ${isEditMode ? 'cursor: move;' : ''}
+        `;
+
+        const header = createTodoListHeader(list, index, theme);
+        todoListDiv.appendChild(header);
+
+        const itemsContainer = createTodoItemsContainer(list, index, theme);
+        todoListDiv.appendChild(itemsContainer);
+
+        if (isEditMode) {
+            const resizer = createResizer(todoListDiv, (width, height) => {
+                list.size = { width, height };
+                saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+            });
+            todoListDiv.appendChild(resizer);
+        }
+
+        return todoListDiv;
+    }
+
+    function createTodoListHeader(list, index, theme) {
+        const header = document.createElement('div');
+        header.style.cssText = `
+            color: ${theme.TEXT};
+            font-size: 16px;
+            padding: 5px;
+            background-color: ${theme.HEADER};
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        `;
+        header.textContent = list.name;
+
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+        const addItemButton = createAddButton(() => addTodoItem(index), theme);
+        buttonContainer.appendChild(addItemButton);
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this todo list?', () => {
+                    todoLists.splice(index, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                    refreshSidebar();
+                    showToast(`Todo list "${list.name}" deleted`, 'info');
+                });
+            }, theme);
+            buttonContainer.appendChild(deleteButton);
+        }
+
+        header.appendChild(buttonContainer);
+        return header;
+    }
+
+    function createTodoItemsContainer(list, index, theme) {
+        const container = document.createElement('div');
+        container.className = 'content-container';
+        container.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        `;
+
+        list.items?.forEach((item, itemIndex) => {
+            const itemDiv = createTodoItemElement(item, list, itemIndex, theme);
+            container.appendChild(itemDiv);
+        });
+
+        return container;
+    }
+
+    function createTodoItemElement(item, list, itemIndex, theme) {
+        const itemDiv = document.createElement('div');
+        itemDiv.style.cssText = `
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            padding: 5px;
+            background-color: ${theme.BG};
+            border-radius: 3px;
+        `;
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.checked = item.checked;
+        checkbox.style.cursor = 'pointer';
+
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                item.checked = true;
+                if (!list.resetDaily) {
+                    itemText.style.opacity = '0.5';
+                    itemText.style.textDecoration = 'line-through';
+
+                    setTimeout(() => {
+                        list.items.splice(itemIndex, 1);
+                        saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                        refreshSidebar();
+                        showToast(`Todo item "${item.name}" completed & removed`, 'success');
+                    }, 1000);
+                } else {
+                    itemText.style.opacity = '0.5';
+                    itemText.style.textDecoration = 'line-through';
+                    saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                    showToast(`Todo item "${item.name}" completed`, 'success');
+                }
+            } else {
+                confirmDelete('Are you sure you want to uncheck this task?', () => {
+                    item.checked = false;
+                    itemText.style.opacity = '1';
+                    itemText.style.textDecoration = 'none';
+                    saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                    refreshSidebar();
+                });
+                checkbox.checked = true;
+            }
+        });
+
+        const itemText = document.createElement('span');
+        itemText.textContent = `${item.emoji || '✅'} ${item.name}`;
+        itemText.style.cssText = `
+            color: ${theme.TEXT};
+            flex-grow: 1;
+            text-decoration: ${item.checked ? 'line-through' : 'none'};
+            opacity: ${item.checked ? '0.5' : '1'};
+            cursor: ${item.url ? 'pointer' : 'default'};
+        `;
+
+        if (item.url) {
+            itemText.addEventListener('click', () => {
+                window.location.href = item.url;
+            });
+        }
+
+        itemDiv.appendChild(checkbox);
+        itemDiv.appendChild(itemText);
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this task?', () => {
+                    list.items.splice(itemIndex, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${currentPage}`, todoLists);
+                    refreshSidebar();
+                    showToast(`Todo item "${item.name}" deleted`, 'info');
+                });
+            }, theme);
+            itemDiv.appendChild(deleteButton);
+        }
+
+        return itemDiv;
+    }
+    function showCalculator() {
+        const existingCalculator = document.getElementById('calculator-modal');
+        if (existingCalculator) {
+            existingCalculator.parentNode.removeChild(existingCalculator);
+            return;
+        }
+
+        const sidebar = document.getElementById('enhanced-sidebar');
+
+        const calculatorContainer = document.createElement('div');
+        calculatorContainer.id = 'calculator-modal';
+        calculatorContainer.style.cssText = `
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            width: 240px;
+            background-color: #111111;
+            border-radius: 5px;
+            padding: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            z-index: 1500;
+            font-family: 'Arial', sans-serif;
+        `;
+
+        const header = document.createElement('div');
+        header.style.cssText = `
+            color: #eeeeee;
+            font-size: 16px;
+            padding: 5px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 10px;
+        `;
+        header.textContent = 'Calculator';
+        calculatorContainer.appendChild(header);
+
+        const display = document.createElement('div');
+        display.id = 'calculator-display';
+        display.style.cssText = `
+            width: 100%;
+            height: 50px;
+            background-color: #222222;
+            color: #eeeeee;
+            border-radius: 5px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px;
+            box-sizing: border-box;
+            font-size: 20px;
+        `;
+
+        const displayLabel = document.createElement('div');
+        displayLabel.textContent = 'Result';
+        displayLabel.style.cssText = `
+            font-size: 14px;
+            color: #999999;
+        `;
+
+        const displayValue = document.createElement('div');
+        displayValue.textContent = '0';
+        displayValue.style.cssText = `
+            font-size: 20px;
+            text-align: right;
+            flex-grow: 1;
+            margin-left: 10px;
+        `;
+
+        display.appendChild(displayLabel);
+        display.appendChild(displayValue);
+        calculatorContainer.appendChild(display);
+
+        const keypad = document.createElement('div');
+        keypad.style.cssText = `
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 5px;
+        `;
+
+        let currentValue = '0';
+        let previousValue = null;
+        let operation = null;
+        let resetOnNextInput = true;
+
+        const buttons = [
+            { text: '7', type: 'number' },
+            { text: '8', type: 'number' },
+            { text: '9', type: 'number' },
+            { text: '÷', type: 'operator', value: '/' },
+
+            { text: '4', type: 'number' },
+            { text: '5', type: 'number' },
+            { text: '6', type: 'number' },
+            { text: '×', type: 'operator', value: '*' },
+
+            { text: '1', type: 'number' },
+            { text: '2', type: 'number' },
+            { text: '3', type: 'number' },
+            { text: '-', type: 'operator' },
+
+            { text: '.', type: 'decimal' },
+            { text: '0', type: 'number' },
+            { text: '=', type: 'equals' },
+            { text: '+', type: 'operator' },
+        ];
+
+        const topRow = document.createElement('div');
+        topRow.style.cssText = `
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 5px;
+            margin-bottom: 5px;
+            align-items: center;
+        `;
+
+        const clearButton = document.createElement('button');
+        clearButton.textContent = 'C';
+        clearButton.style.cssText = `
+            background-color: #ff3333;
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            height: 40px;
+        `;
+
+        clearButton.addEventListener('click', () => {
+            currentValue = '0';
+            previousValue = null;
+            operation = null;
+            resetOnNextInput = true;
+            displayValue.textContent = currentValue;
+        });
+
+        topRow.appendChild(display);
+        topRow.appendChild(clearButton);
+
+        calculatorContainer.appendChild(topRow);
+
+        calculatorContainer.appendChild(topRow);
+
+        buttons.forEach(btn => {
+            const button = document.createElement('button');
+            button.textContent = btn.text;
+            button.style.cssText = `
+                background-color: ${btn.type === 'operator' || btn.type === 'equals' ? '#333333' : '#222222'};
+                color: white;
+                border: none;
+                padding: 12px;
+                border-radius: 5px;
+                cursor: pointer;
+                font-size: 16px;
+                transition: transform 0.1s, background-color 0.1s;
+            `;
+
+            button.addEventListener('click', () => {
+                button.style.transform = 'scale(0.95)';
+                button.style.backgroundColor = btn.type === 'operator' || btn.type === 'equals' ? '#444444' : '#333333';
+
+                setTimeout(() => {
+                    button.style.transform = 'scale(1)';
+                    button.style.backgroundColor = btn.type === 'operator' || btn.type === 'equals' ? '#333333' : '#222222';
+                }, 100);
+
+                const value = btn.value || btn.text;
+
+                if (btn.type === 'decimal') {
+                    if (!currentValue.includes('.')) {
+                        currentValue = currentValue === '0' ? '0.' : currentValue + '.';
+                    }
+                }
+
+                if (btn.type === 'number') {
+                    if (resetOnNextInput) {
+                        currentValue = value;
+                        resetOnNextInput = false;
+                    } else {
+                        currentValue = currentValue === '0' ? value : currentValue + value;
+                    }
+                }
+                else if (btn.type === 'operator') {
+                    previousValue = currentValue;
+                    operation = btn.value || btn.text;
+                    resetOnNextInput = true;
+                }
+                else if (btn.type === 'equals') {
+                    if (previousValue && operation) {
+                        const prev = parseFloat(previousValue);
+                        const current = parseFloat(currentValue);
+                        let result;
+
+                        switch (operation) {
+                            case '+': result = prev + current; break;
+                            case '-': result = prev - current; break;
+                            case '*':
+                            case '×': result = prev * current; break;
+                            case '/':
+                            case '÷':
+                                if (current === 0) {
+                                    result = 'Error';
+                                } else {
+                                    result = prev / current;
+                                }
+                                break;
+                        }
+
+                        currentValue = String(result);
+                        previousValue = null;
+                        operation = null;
+                        resetOnNextInput = true;
+                    }
+                }
+
+                displayValue.textContent = currentValue;
+            });
+
+            keypad.appendChild(button);
+        });
+
+        calculatorContainer.appendChild(keypad);
+
+        document.addEventListener('click', function clickOutside(e) {
+            if (!calculatorContainer.contains(e.target) && e.target.id !== 'calculatorButton') {
+                if (sidebar.contains(calculatorContainer)) {
+                    sidebar.removeChild(calculatorContainer);
+                }
+                document.removeEventListener('click', clickOutside);
+                document.removeEventListener('keydown', handleKeyPress);
+            }
+        }, { capture: true });
+
+        const handleKeyPress = (e) => {
+            const key = e.key;
+
+            if ('0123456789'.includes(key)) {
+                const numberBtn = Array.from(keypad.children).find(btn => btn.textContent === key);
+                if (numberBtn) numberBtn.click();
+            } else if (key === '+' || key === '-') {
+                const opBtn = Array.from(keypad.children).find(btn => btn.textContent === key);
+                if (opBtn) opBtn.click();
+            } else if (key === '*') {
+                const multBtn = Array.from(keypad.children).find(btn => btn.textContent === '×');
+                if (multBtn) multBtn.click();
+            } else if (key === '/') {
+                const divBtn = Array.from(keypad.children).find(btn => btn.textContent === '÷');
+                if (divBtn) divBtn.click();
+            } else if (key === 'Enter' || key === '=') {
+                const equalsBtn = Array.from(keypad.children).find(btn => btn.textContent === '=');
+                if (equalsBtn) equalsBtn.click();
+            } else if (key === 'Escape' || key === 'c' || key === 'C') {
+                clearButton.click();
+            }
+        };
+
+        document.addEventListener('keydown', handleKeyPress);
+
+        sidebar.appendChild(calculatorContainer);
+
+        setTimeout(() => {
+            calculatorContainer.addEventListener('click', (e) => {
+                e.stopPropagation();
+            });
+        }, 0);
+    }
+
+    function createLoanTrackerElement() {
+        const theme = getTheme();
+        const trackerDiv = document.createElement('div');
+        trackerDiv.className = 'draggable';
+        trackerDiv.dataset.type = 'loanTracker';
+
+        trackerDiv.style.cssText = `
+            background-color: ${theme.SECONDARY_BG};
+            padding: 10px;
+            border: 1px solid ${theme.BORDER};
+            border-radius: 5px;
+            position: absolute;
+            width: ${loanTracker.size?.width || 200}px;
+            height: ${loanTracker.size?.height || 'auto'};
+            left: ${loanTracker.position?.x || 0}px;
+            top: ${loanTracker.position?.y || 0}px;
+            ${isEditMode ? 'cursor: move;' : ''}
+        `;
+
+        const header = createTrackerHeader('Loan Tracker', () => addLoanEntry(), theme);
+        const entriesContainer = createLoanEntriesContainer(theme);
+
+        trackerDiv.appendChild(header);
+        trackerDiv.appendChild(entriesContainer);
+
+        if (isEditMode) {
+            const resizer = createResizer(trackerDiv, (width, height) => {
+                loanTracker.size = { width, height };
+                saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+            });
+            trackerDiv.appendChild(resizer);
+        }
+
+        return trackerDiv;
+    }
+
+    function createLoanEntriesContainer(theme) {
+        const container = document.createElement('div');
+        container.className = 'content-container';
+        container.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        `;
+
+        loanTracker.entries?.forEach((entry, index) => {
+            const entryDiv = createLoanEntryElement(entry, index, theme);
+            container.appendChild(entryDiv);
+        });
+
+        return container;
+    }
+
+    function createLoanEntryElement(entry, index, theme) {
+        const entryDiv = document.createElement('div');
+        entryDiv.style.cssText = `
+            background-color: ${theme.BG};
+            padding: 8px;
+            border-radius: 3px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-bottom: 8px;
+            border-left: 3px solid ${getDueDateColor(entry, theme)};
+            position: relative;
+        `;
+
+        const headerDiv = document.createElement('div');
+        headerDiv.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        `;
+
+        const userText = document.createElement('span');
+        userText.innerHTML = `<strong>👤 ${entry.user}</strong>`;
+        userText.style.cssText = `color: ${theme.TEXT}; font-size: 14px;`;
+        headerDiv.appendChild(userText);
+
+        const amountText = document.createElement('span');
+        amountText.textContent = `$${entry.amount.toLocaleString()}`;
+        amountText.style.cssText = `
+            color: ${theme.TEXT};
+            font-weight: bold;
+            font-size: 14px;
+        `;
+        headerDiv.appendChild(amountText);
+        entryDiv.appendChild(headerDiv);
+
+        if (entry.dueDate) {
+            const dueDiv = document.createElement('div');
+            dueDiv.textContent = `📅 Due: ${formatDate(entry.dueDate)}`;
+            dueDiv.style.cssText = `
+                color: ${getDueDateColor(entry, theme)};
+                font-size: 13px;
+                ${isOverdue(entry) ? 'font-weight: bold;' : ''}
+            `;
+            entryDiv.appendChild(dueDiv);
+        }
+
+        if (entry.notes) {
+            const notesDiv = document.createElement('div');
+            notesDiv.textContent = `📝 ${entry.notes}`;
+            notesDiv.style.cssText = `
+                color: ${theme.TEXT};
+                font-size: 13px;
+                font-style: italic;
+            `;
+            entryDiv.appendChild(notesDiv);
+        }
+
+        const paymentDiv = document.createElement('div');
+        paymentDiv.style.cssText = `
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 4px;
+        `;
+
+        let historyVisible = false;
+        const historyToggle = document.createElement('button');
+        historyToggle.textContent = 'History';
+        historyToggle.className = 'no-drag';
+        historyToggle.style.cssText = `
+            background: none;
+            border: 1px solid ${theme.BORDER};
+            color: ${theme.TEXT};
+            padding: 2px 6px;
+            font-size: 12px;
+            border-radius: 3px;
+            cursor: pointer;
+            margin-right: 5px;
+            ${entry.payments && entry.payments.length > 0 ? '' : 'display: none;'}
+        `;
+
+        const historySection = document.createElement('div');
+        historySection.style.cssText = `
+            display: none;
+            margin-top: 8px;
+            padding: 5px;
+            background-color: ${theme.SECONDARY_BG};
+            border-radius: 3px;
+            font-size: 12px;
+        `;
+
+        if (entry.payments && entry.payments.length > 0) {
+            const historyTitle = document.createElement('div');
+            historyTitle.textContent = 'Payment History';
+            historyTitle.style.cssText = `
+                color: ${theme.TEXT};
+                font-weight: bold;
+                margin-bottom: 5px;
+                font-size: 13px;
+            `;
+            historySection.appendChild(historyTitle);
+
+            entry.payments.forEach(payment => {
+                const paymentLine = document.createElement('div');
+                paymentLine.textContent = `${formatDate(new Date(payment.date))} - $${payment.amount.toLocaleString()} paid (Remaining: $${payment.remaining.toLocaleString()})`;
+                paymentLine.style.cssText = `
+                    color: ${theme.TEXT};
+                    margin-bottom: 3px;
+                `;
+                historySection.appendChild(paymentLine);
+            });
+        }
+
+        historyToggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            historyVisible = !historyVisible;
+            historySection.style.display = historyVisible ? 'block' : 'none';
+            historyToggle.textContent = historyVisible ? 'Hide History' : 'History';
+        });
+
+        const paymentInput = createPaymentInput(entry, index, theme);
+
+        paymentDiv.appendChild(historyToggle);
+        paymentDiv.appendChild(paymentInput);
+        entryDiv.appendChild(paymentDiv);
+        entryDiv.appendChild(historySection);
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this loan entry?', () => {
+                    loanTracker.entries.splice(index, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+                    refreshSidebar();
+                    showToast(`Loan for "${entry.user}" deleted`, 'info');
+                });
+            }, theme);
+            deleteButton.style.cssText = `
+                position: absolute;
+                top: 8px;
+                right: 8px;
+            `;
+            entryDiv.appendChild(deleteButton);
+        }
+
+        return entryDiv;
+    }
+
+    function createTrackerHeader(title, addAction, theme) {
+        const header = document.createElement('div');
+        header.style.cssText = `
+            color: ${theme.TEXT};
+            font-size: 16px;
+            padding: 5px;
+            background-color: ${theme.HEADER};
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        `;
+        header.textContent = title;
+
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+        const addButton = createAddButton(addAction, theme);
+        buttonContainer.appendChild(addButton);
+
+        if (isDeleteMode) {
+            const clearButton = createDeleteButton(() => {
+                confirmDelete(`Clear all ${title.toLowerCase()} entries?`, () => {
+                    if (title === 'Auction Tracker') {
+                        auctionTracker.auctions = [];
+                        saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+                    } else {
+                        loanTracker.entries = [];
+                        saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+                    }
+                    refreshSidebar();
+                    showToast(`${title} cleared`, 'info');
+                });
+            }, theme, 'Clear');
+            buttonContainer.appendChild(clearButton);
+        }
+
+        header.appendChild(buttonContainer);
+        return header;
+    }
+
+    function createAuctionTrackerElement() {
+        const theme = getTheme();
+        const trackerDiv = document.createElement('div');
+        trackerDiv.className = 'draggable';
+        trackerDiv.dataset.type = 'auctionTracker';
+
+        trackerDiv.style.cssText = `
+            background-color: ${theme.SECONDARY_BG};
+            padding: 10px;
+            border: 1px solid ${theme.BORDER};
+            border-radius: 5px;
+            position: absolute;
+            width: ${auctionTracker.size?.width || 180}px;
+            height: ${auctionTracker.size?.height || 'auto'};
+            left: ${auctionTracker.position?.x || 0}px;
+            top: ${auctionTracker.position?.y || 0}px;
+            ${isEditMode ? 'cursor: move;' : ''}
+        `;
+
+        const header = createTrackerHeader('Auction Tracker', () => addAuctionEntry(), theme);
+        const auctionsContainer = createAuctionsContainer(theme);
+
+        trackerDiv.appendChild(header);
+        trackerDiv.appendChild(auctionsContainer);
+
+        if (isEditMode) {
+            const resizer = createResizer(trackerDiv, (width, height) => {
+                auctionTracker.size = { width, height };
+                saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+            });
+            trackerDiv.appendChild(resizer);
+        }
+
+        return trackerDiv;
+    }
+
+    function createAuctionsContainer(theme) {
+        const container = document.createElement('div');
+        container.className = 'content-container';
+        container.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        `;
+
+        auctionTracker.auctions?.forEach((auction, index) => {
+            const auctionDiv = createAuctionElement(auction, index, theme);
+            container.appendChild(auctionDiv);
+        });
+
+        return container;
+    }
+
+    function createAuctionElement(auction, index, theme) {
+        const auctionDiv = document.createElement('div');
+        auctionDiv.style.cssText = `
+            background-color: ${theme.BG};
+            padding: 5px;
+            border-radius: 3px;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            margin-bottom: 4px;
+            border-left: 3px solid ${getAuctionColor(auction.endTime, theme)};
+        `;
+
+        const itemText = document.createElement('div');
+        itemText.innerHTML = `<strong>🏷️ ${auction.item}</strong>`;
+        itemText.style.cssText = `color: ${theme.TEXT}; font-size: 14px;`;
+        auctionDiv.appendChild(itemText);
+
+        const sellerText = document.createElement('div');
+        sellerText.textContent = `👤 ${auction.seller}`;
+        sellerText.style.cssText = `color: ${theme.TEXT}; font-size: 13px;`;
+        auctionDiv.appendChild(sellerText);
+
+        const timeLeftText = document.createElement('div');
+        function updateTime() {
+            const timeLeftFormatted = formatTimeLeft(auction.endTime);
+            timeLeftText.textContent = `⏱️ ${timeLeftFormatted}`;
+            timeLeftText.style.cssText = `
+                color: ${getAuctionColor(auction.endTime, theme)};
+                font-weight: ${isEnding(auction.endTime) ? 'bold' : 'normal'};
+                font-size: 13px;
+            `;
+        }
+        updateTime();
+
+        if (isEnding(auction.endTime)) {
+            const timerId = setInterval(updateTime, 1000);
+            auctionDiv.dataset.timerId = timerId;
+        }
+
+        auctionDiv.appendChild(timeLeftText);
+
+        const controlsDiv = document.createElement('div');
+        controlsDiv.style.cssText = `
+            display: flex;
+            justify-content: flex-end;
+            gap: 5px;
+            margin-top: 2px;
+        `;
+
+        const auctionButton = document.createElement('button');
+        auctionButton.innerHTML = '🔍';
+        auctionButton.title = 'Go to auctions';
+        auctionButton.className = 'no-drag';
+        auctionButton.style.cssText = `
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            padding: 1px 3px;
+        `;
+        auctionButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.location.href = 'https://www.torn.com/amarket.php';
+        });
+        controlsDiv.appendChild(auctionButton);
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this auction entry?', () => {
+                    if (auctionDiv.dataset.timerId) {
+                        clearInterval(parseInt(auctionDiv.dataset.timerId));
+                    }
+
+                    auctionTracker.auctions.splice(index, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+                    refreshSidebar();
+                    showToast(`Auction for "${auction.item}" deleted`, 'info');
+                });
+            }, theme);
+            controlsDiv.appendChild(deleteButton);
+        }
+
+        auctionDiv.appendChild(controlsDiv);
+        return auctionDiv;
+    }
+function createCountdownElement(group, index) {
+        const theme = getTheme();
+        const countdownDiv = document.createElement('div');
+        countdownDiv.className = 'draggable';
+        countdownDiv.dataset.type = 'countdown';
+        countdownDiv.dataset.index = index;
+
+        countdownDiv.style.cssText = `
+            background-color: ${theme.SECONDARY_BG};
+            padding: 10px;
+            border: 1px solid ${theme.BORDER};
+            border-radius: 5px;
+            position: absolute;
+            width: ${group.size?.width || 200}px;
+            height: ${group.size?.height || 'auto'};
+            left: ${group.position?.x || 0}px;
+            top: ${group.position?.y || 0}px;
+            ${isEditMode ? 'cursor: move;' : ''}
+        `;
+
+        const header = document.createElement('div');
+        header.style.cssText = `
+            color: ${theme.TEXT};
+            font-size: 16px;
+            padding: 5px;
+            background-color: ${theme.HEADER};
+            border-radius: 3px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        `;
+        header.textContent = group.name || 'Timers';
+
+        const buttonContainer = document.createElement('div');
+        buttonContainer.style.cssText = 'display: flex; gap: 5px; align-items: center;';
+
+        const addTimerButton = createAddButton(() => addManualCountdownGroup(), theme);
+        buttonContainer.appendChild(addTimerButton);
+
+        if (isDeleteMode) {
+            const deleteButton = createDeleteButton(() => {
+                confirmDelete('Delete this timer group?', () => {
+                    countdownGroups.splice(index, 1);
+                    saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+                    refreshSidebar();
+                    showToast(`Timer group deleted`, 'info');
+                });
+            }, theme);
+            buttonContainer.appendChild(deleteButton);
+        }
+
+        header.appendChild(buttonContainer);
+        countdownDiv.appendChild(header);
+
+        const countdownContainer = document.createElement('div');
+        countdownContainer.style.cssText = `
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 8px;
+        `;
+
+        if (group.timers && group.timers.length > 0) {
+            group.timers = group.timers.filter(timer => !timer.completed);
+
+            group.timers = group.timers.filter(timer => {
+                return timer.endTime >= Date.now() - (24 * 60 * 60 * 1000);
+            });
+
+            group.timers.forEach((timer, timerIndex) => {
+                const timerContainer = document.createElement('div');
+                timerContainer.className = 'timer-container';
+                timerContainer.style.cssText = `
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 8px;
+                    background-color: ${theme.BG};
+                    border-radius: 3px;
+                `;
+
+                const timerLabel = document.createElement('div');
+                timerLabel.textContent = timer.name;
+                timerLabel.style.cssText = `
+                    color: ${theme.TEXT};
+                    font-weight: bold;
+                    font-size: 14px;
+                `;
+
+                const timerDisplay = document.createElement('div');
+                timerDisplay.id = `custom_timer_${index}_${timerIndex}`;
+                timerDisplay.style.cssText = `
+                    font-size: 14px;
+                    font-weight: bold;
+                    color: ${theme.TEXT};
+                `;
+
+                timerContainer.appendChild(timerLabel);
+                timerContainer.appendChild(timerDisplay);
+
+                if (isDeleteMode) {
+                    const deleteButton = createDeleteButton(() => {
+                        confirmDelete(`Delete timer "${timer.name}"?`, () => {
+                            group.timers.splice(timerIndex, 1);
+                            saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+                            refreshSidebar();
+                            showToast(`Timer "${timer.name}" deleted`, 'info');
+                        });
+                    }, theme);
+                    deleteButton.style.cssText = `
+                        position: absolute;
+                        right: 18px;
+                        padding: 1px 4px;
+                        font-size: 10px;
+                    `;
+                    timerContainer.appendChild(deleteButton);
+                }
+
+                countdownContainer.appendChild(timerContainer);
+
+                const timerId = setInterval(() => {
+                    const isActive = updateManualCountdown(timerDisplay, timer.endTime);
+                    if (!isActive) {
+                        clearInterval(timerId);
+                        timer.completed = true;
+                        saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+                    }
+                }, 1000);
+
+                updateManualCountdown(timerDisplay, timer.endTime);
+            });
+
+            saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+        }
+
+        countdownDiv.appendChild(countdownContainer);
+
+        if (isEditMode) {
+            const resizer = createResizer(countdownDiv, (width, height) => {
+                group.size = { width, height };
+                saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${currentPage}`, countdownGroups);
+            });
+            countdownDiv.appendChild(resizer);
+        }
+
+        return countdownDiv;
+    }
+    function addDebugManager() {
+        const debugButton = document.createElement('button');
+        debugButton.textContent = '🔧';
+        debugButton.title = 'SideWinder Settings';
+        debugButton.style.cssText = `
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background-color: ${getTheme().BUTTON_BG};
+            color: ${getTheme().TEXT};
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 16px;
+            cursor: pointer;
+            z-index: 9999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0.6;
+            transition: opacity 0.3s ease;
+        `;
+
+        debugButton.addEventListener('mouseover', () => {
+            debugButton.style.opacity = '1';
+        });
+
+        debugButton.addEventListener('mouseout', () => {
+            debugButton.style.opacity = '0.6';
+        });
+
+        debugButton.addEventListener('click', () => {
+            if (!debugMenuOpen) {
+                debugMenuOpen = true;
+                showDebugMenu();
+            }
+        });
+
+        document.body.appendChild(debugButton);
+    }
+
+    function showDebugMenu() {
+        const theme = getTheme();
+        const overlay = createOverlay();
+        const menu = document.createElement('div');
+
+        menu.style.cssText = `
+            background-color: ${theme.SECONDARY_BG};
+            padding: 20px;
+            border-radius: 5px;
+            min-width: 350px;
+            max-width: 500px;
+            border: 1px solid ${theme.BORDER};
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+        `;
+
+        menu.innerHTML = `
+            <h3 style="margin-top: 0; color: ${theme.TEXT};">SideWinder Settings</h3>
+
+            <div style="margin-bottom: 15px;">
+                <div style="color: ${theme.TEXT}; margin-bottom: 5px; font-weight: bold;">Data Management</div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="debug-export" style="
+                        padding: 5px 10px;
+                        background-color: ${theme.BUTTON_BG};
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">Export Data</button>
+
+                    <button id="debug-import" style="
+                        padding: 5px 10px;
+                        background-color: ${theme.BUTTON_BG};
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">Import Data</button>
+
+                    <button id="debug-reset" style="
+                        padding: 5px 10px;
+                        background-color: ${theme.DANGER};
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">Reset All Data</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="color: ${theme.TEXT}; margin-bottom: 5px; font-weight: bold;">Repair Functions</div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="debug-validate" style="
+                        padding: 5px 10px;
+                        background-color: ${theme.BUTTON_BG};
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">Validate Data</button>
+
+                    <button id="debug-fix-trackers" style="
+                        padding: 5px 10px;
+                        background-color: ${theme.BUTTON_BG};
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">Fix Trackers</button>
+
+                    <button id="debug-refresh" style="
+                        padding: 5px 10px;
+                        background-color: ${theme.BUTTON_BG};
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">Force Refresh</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="color: ${theme.TEXT}; margin-bottom: 5px; font-weight: bold;">Appearance</div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="debug-theme" style="
+                        padding: 5px 10px;
+                        background-color: ${theme.BUTTON_BG};
+                        color: white;
+                        border: none;
+                        border-radius: 3px;
+                        cursor: pointer;
+                    ">${isLightMode ? 'Switch to Dark Mode' : 'Switch to Light Mode'}</button>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="color: ${theme.TEXT}; margin-bottom: 5px; font-weight: bold;">Debug Info</div>
+                <div style="
+                    padding: 5px;
+                    background-color: ${theme.BG};
+                    border: 1px solid ${theme.BORDER};
+                    color: ${theme.TEXT};
+                    border-radius: 3px;
+                    font-family: monospace;
+                    font-size: 12px;
+                    height: 100px;
+                    overflow-y: auto;
+                " id="debug-info"></div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <div style="color: ${theme.TEXT}; margin-bottom: 5px; font-weight: bold;">Script Status</div>
+                <div style="
+                    padding: 5px;
+                    background-color: ${theme.BG};
+                    border: 1px solid ${theme.BORDER};
+                    color: ${theme.TEXT};
+                    border-radius: 3px;
+                    font-family: monospace;
+                    font-size: 12px;
+                ">
+                    <div>SideWinder Version: ${CONSTANTS.VERSION || '2.2'}</div>
+                    <div>Light Mode: ${isLightMode ? 'Enabled' : 'Disabled'}</div>
+                    <div>Current Page: ${currentPage + 1}</div>
+                    <div>Auction Timer: ${window.auctionCheckIntervalId ? 'Running' : 'Not Running'}</div>
+                </div>
+            </div>
+
+            <div style="text-align: right;">
+                <button id="debug-close" style="
+                    padding: 5px 15px;
+                    background-color: ${theme.BUTTON_BG};
+                    color: white;
+                    border: none;
+                    border-radius: 3px;
+                    cursor: pointer;
+                ">Close</button>
+            </div>
+        `;
+
+        overlay.appendChild(menu);
+        document.body.appendChild(overlay);
+
+        const debugInfo = menu.querySelector('#debug-info');
+        debugInfo.innerHTML = `
+            Current Page: ${currentPage + 1}<br>
+            Groups: ${groups.length}<br>
+            Notepads: ${notepads.length}<br>
+            Attack Lists: ${attackLists.length}<br>
+            Todo Lists: ${todoLists.length}<br>
+            Loan Entries: ${loanTracker.entries.length}<br>
+            Auction Entries: ${auctionTracker.auctions.length}<br>
+            Timer Groups: ${countdownGroups.length}<br>
+            Custom Countdowns: ${manualCountdownGroups.length}<br>
+        `;
+
+        menu.querySelector('#debug-close').addEventListener('click', () => {
+            document.body.removeChild(overlay);
+            debugMenuOpen = false;
+        });
+
+        menu.querySelector('#debug-export').addEventListener('click', () => {
+            exportAllData();
+        });
+
+        menu.querySelector('#debug-import').addEventListener('click', () => {
+            importAllData();
+        });
+
+        menu.querySelector('#debug-reset').addEventListener('click', () => {
+            confirmDelete('This will reset ALL SideWinder data. Are you sure?', () => {
+                resetAllData();
+                document.body.removeChild(overlay);
+                debugMenuOpen = false;
+            });
+        });
+
+        menu.querySelector('#debug-validate').addEventListener('click', () => {
+            validateState();
+            showToast('Data validated', 'success');
+        });
+
+        menu.querySelector('#debug-fix-trackers').addEventListener('click', () => {
+            fixTrackers();
+            showToast('Trackers fixed', 'success');
+        });
+
+        menu.querySelector('#debug-refresh').addEventListener('click', () => {
+            refreshSidebar();
+            showToast('Sidebar refreshed', 'success');
+        });
+
+        menu.querySelector('#debug-theme').addEventListener('click', () => {
+            toggleLightMode();
+            document.body.removeChild(overlay);
+            debugMenuOpen = false;
+            showToast(`Switched to ${isLightMode ? 'Light' : 'Dark'} Mode`, 'success');
+
+            setTimeout(() => {
+                debugMenuOpen = true;
+                showDebugMenu();
+            }, 300);
+        });
+    }
+
+    function exportAllData() {
+        savePageData();
+
+        const allPageData = [];
+        for (let i = 0; i < 3; i++) {
+            const pageGroups = loadState(`${CONSTANTS.STATE_KEYS.GROUPS}_${i}`, []);
+            const pageNotepads = loadState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${i}`, []);
+            const pageAttackLists = loadState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${i}`, []);
+            const pageTodoLists = loadState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${i}`, []);
+            const pageLoanTracker = loadState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${i}`, { entries: [] });
+            const pageAuctionTracker = loadState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${i}`, { auctions: [] });
+            const pageCountdownGroups = loadState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${i}`, []);
+            const pageManualCountdownGroups = loadState(`${CONSTANTS.STATE_KEYS.MANUAL_COUNTDOWN_GROUPS}_${i}`, []);
+
+            allPageData.push({
+                groups: pageGroups,
+                notepads: pageNotepads,
+                attackLists: pageAttackLists,
+                todoLists: pageTodoLists,
+                loanTracker: pageLoanTracker,
+                auctionTracker: pageAuctionTracker,
+                countdownGroups: pageCountdownGroups,
+                manualCountdownGroups: pageManualCountdownGroups
+            });
+        }
+
+        const exportData = {
+            version: CONSTANTS.VERSION || '2.2',
+            timestamp: Date.now(),
+            currentPage: currentPage,
+            isLightMode: isLightMode,
+            pages: allPageData
+        };
+
+        const dataStr = JSON.stringify(exportData, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+
+        const exportFileDefaultName = 'sidewinder_backup.json';
+
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+    }
+
+    function importAllData() {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+
+        input.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const importedData = JSON.parse(event.target.result);
+
+                    if (!importedData.pages) {
+                        throw new Error('Invalid backup file format');
+                    }
+
+                    confirmDelete('This will replace all your current data with the imported data. Continue?', () => {
+                        savePageData();
+
+                        importedData.pages.forEach((pageData, pageIndex) => {
+                            if (pageIndex >= 3) return;
+
+                            saveState(`${CONSTANTS.STATE_KEYS.GROUPS}_${pageIndex}`, pageData.groups || []);
+                            saveState(`${CONSTANTS.STATE_KEYS.NOTEPADS}_${pageIndex}`, pageData.notepads || []);
+                            saveState(`${CONSTANTS.STATE_KEYS.ATTACK_LISTS}_${pageIndex}`, pageData.attackLists || []);
+                            saveState(`${CONSTANTS.STATE_KEYS.TODO_LISTS}_${pageIndex}`, pageData.todoLists || []);
+                            saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${pageIndex}`, pageData.loanTracker || { entries: [] });
+                            saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${pageIndex}`, pageData.auctionTracker || { auctions: [] });
+                            saveState(`${CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS}_${pageIndex}`, pageData.countdownGroups || []);
+                            saveState(`${CONSTANTS.STATE_KEYS.MANUAL_COUNTDOWN_GROUPS}_${pageIndex}`, pageData.manualCountdownGroups || []);
+                        });
+
+                        isLightMode = importedData.isLightMode || false;
+                        saveState(CONSTANTS.STATE_KEYS.LIGHT_MODE, isLightMode);
+
+                        currentPage = importedData.currentPage || 0;
+                        if (currentPage >= 3) currentPage = 0;
+                        saveState(CONSTANTS.STATE_KEYS.CURRENT_PAGE, currentPage);
+
+                        loadPageData();
+
+                        refreshSidebar();
+
+                        showToast('Data imported successfully', 'success');
+                    });
+                } catch (error) {
+                    showToast(`Import error: ${error.message}`, 'error');
+                }
+            };
+            reader.readAsText(file);
+        });
+
+        input.click();
+    }
+
+    function resetAllData() {
+    // List all key prefixes that need to be completely removed
+    const keyPrefixes = [
+        CONSTANTS.STATE_KEYS.GROUPS,
+        CONSTANTS.STATE_KEYS.NOTEPADS,
+        CONSTANTS.STATE_KEYS.ATTACK_LISTS,
+        CONSTANTS.STATE_KEYS.TODO_LISTS,
+        CONSTANTS.STATE_KEYS.LOAN_TRACKER,
+        CONSTANTS.STATE_KEYS.AUCTION_TRACKER,
+        CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS,
+        CONSTANTS.STATE_KEYS.MANUAL_COUNTDOWN_GROUPS,
+        CONSTANTS.STATE_KEYS.DAY_RESET_TIMER,
+        CONSTANTS.STATE_KEYS.MINIMIZE_STATES,
+        CONSTANTS.STATE_KEYS.SIDEBAR_STATE,
+        CONSTANTS.STATE_KEYS.LIGHT_MODE,
+        CONSTANTS.STATE_KEYS.CURRENT_PAGE,
+    ];
+
+    // Find and remove all localStorage keys related to SideWinder
+    for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+
+        // Check if the key belongs to the SideWinder script
+        const isSideWinderKey = keyPrefixes.some(prefix =>
+            key === prefix ||
+            key.startsWith(`${prefix}_`) ||
+            key === `${prefix}_backup` ||
+            key.startsWith(`${prefix}_backup_`)
+        );
+
+        if (isSideWinderKey) {
+            try {
+                localStorage.removeItem(key);
+                // Adjust index because removing an item shifts the storage
+                i--;
+            } catch (e) {
+                console.error(`Failed to remove key: ${key}`, e);
+            }
+        }
+    }
+
+    // Also try to clear GM storage if available
+    const gmKeys = [
+        CONSTANTS.STATE_KEYS.GROUPS,
+        CONSTANTS.STATE_KEYS.NOTEPADS,
+        CONSTANTS.STATE_KEYS.ATTACK_LISTS,
+        CONSTANTS.STATE_KEYS.TODO_LISTS,
+        CONSTANTS.STATE_KEYS.LOAN_TRACKER,
+        CONSTANTS.STATE_KEYS.AUCTION_TRACKER,
+        CONSTANTS.STATE_KEYS.COUNTDOWN_GROUPS,
+        CONSTANTS.STATE_KEYS.MANUAL_COUNTDOWN_GROUPS,
+        CONSTANTS.STATE_KEYS.DAY_RESET_TIMER,
+        "groupZOrder",
+        "sidebarState",
+        "lightMode",
+        "refreshRate",
+        "currentPage",
+    ];
+
+    // Remove any GM storage values if they exist
+    if (typeof GM_setValue !== 'undefined' && typeof GM_deleteValue !== 'undefined') {
+        for (const key of gmKeys) {
+            try {
+                GM_deleteValue(key);
+                // Also remove backup and page-specific values
+                for (let i = 0; i < 3; i++) {
+                    GM_deleteValue(`${key}_${i}`);
+                    GM_deleteValue(`${key}_${i}_backup`);
+                }
+                GM_deleteValue(`${key}_backup`);
+            } catch (e) {
+                console.error(`Failed to remove GM key: ${key}`, e);
+            }
+        }
+    }
+
+    // Reset all runtime variables to defaults
+    groups = [];
+    notepads = [];
+    attackLists = [];
+    todoLists = [];
+    loanTracker = { entries: [] };
+    auctionTracker = { auctions: [] };
+    countdownGroups = [];
+    manualCountdownGroups = [];
+    isLightMode = false;
+    currentPage = 0;
+
+    // Refresh the sidebar
+    refreshSidebar();
+
+    showToast('All data has been completely reset', 'info');
+}
+    function fixTrackers() {
+        auctionTracker.auctions = auctionTracker.auctions.filter(auction => {
+            if (auction.timeLeft !== undefined && auction.endTime === undefined) {
+                auction.endTime = Date.now() + (auction.timeLeft * 60 * 1000);
+                auction.created = Date.now();
+                delete auction.timeLeft;
+            }
+
+            return auction.endTime > Date.now();
+        });
+
+        saveState(`${CONSTANTS.STATE_KEYS.AUCTION_TRACKER}_${currentPage}`, auctionTracker);
+
+        loanTracker.entries.forEach(entry => {
+            if (!entry.payments) {
+                entry.payments = [];
+            }
+
+            if (typeof entry.amount !== 'number') {
+                entry.amount = parseFloat(entry.amount) || 0;
+            }
+
+            if (!entry.created) {
+                entry.created = Date.now();
+            }
+        });
+
+        saveState(`${CONSTANTS.STATE_KEYS.LOAN_TRACKER}_${currentPage}`, loanTracker);
+
+        if (window.auctionCheckIntervalId) {
+            clearInterval(window.auctionCheckIntervalId);
+        }
+
+        initializeAuctionUpdates();
+
+        refreshSidebar();
+    }
+
+    function initialize() {
+        initializeState();
+        validateState();
+        createSidebar();
+
+        setInterval(checkTodoListResets, 1000); // Check every second for accurate resets
+
+        todoLists.forEach((list, index) => {
+            if (list.resetDaily) {
+                setupDailyReset(index);
+            }
+        });
+
+        window.addEventListener('resize', () => {
+            preserveSidebarAnimation();
+        });
+
+        // Check for any active auction timers
+        initializeAuctionUpdates();
+
+        addDebugManager();
+    }
+
+    initialize();
+})();
